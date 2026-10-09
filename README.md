@@ -244,11 +244,10 @@ Izvēlies vienu konkrētu ievadi un pieraksti mainīgo vērtības pa soļiem.
 ```markdown
 | Solis | Nosacījums | Mainīgie pirms | Veiktā darbība | Mainīgie pēc | Izvade |
 |------:|------------|-----------------|----------------|----------------|--------|
-| 0     | —          |                 | Sākums         |                |        |
-| 1     |            |                 |                |                |        |
-| 2     |            |                 |                |                |        |
-```
-
+| 0     | —   1       |        1         | 0 +1       |   1             |   1     |
+| 1     |      1      |       1          |     1+2    |   3             |   3     |
+| 2     |     1       |         3        |      3+4   |     7           |  7      |  
+| 3     |             |         7        |    7+8     |       15        |   15    |     
 ## 3. Testa piemēri
 
 Izveido vismaz četrus atšķirīgus testus.
@@ -256,10 +255,10 @@ Izveido vismaz četrus atšķirīgus testus.
 ```markdown
 | Testa veids | Ievade | Sagaidāmais rezultāts | Faktiskais rezultāts | Tests izturēts? |
 |-------------|--------|-----------------------|---------------------|-----------------|
-| Tipisks     |        |                       |                     |                 |
-| Robežgadījums |      |                       |                     |                 |
-| Tukša vai nederīga ievade | |                 |                     |                 |
-| Papildu tests |      |                       |                     |                 |
+| Tipisks     |    5    |           15            |         15            |       Jā          |
+| Robežgadījums |   1   |            1           |          1           |          Jā       |
+| Tukša vai nederīga ievade |0 |    0             |         kļūda            |       nē           |
+| Papildu tests |  -5    |          0             |          0           |           jā      |
 ```
 
 ## 4. Kļūda, pretpiemērs vai uzlabojums
