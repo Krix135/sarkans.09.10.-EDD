@@ -51,17 +51,17 @@ LEVELS = [  # name, colour, emoji, spoken
     ("HARD", (231, 76, 60), "🔴", "Level four. Hard! Only experts get these."),
 ]
 
-FOODS = [  # key (= photo file name), answer on screen, emoji for the reveal (or None), level, spoken
+FOODS = [  # key (= picture file name), answer on screen, emoji for the reveal (or None), level, spoken
     ("pizza", "PIZZA", "🍕", 0, "Pizza!"),
-    ("banana", "BANANA", "🍌", 0, "Banana!"),
-    ("hamburger", "HAMBURGER", "🍔", 0, "Hamburger!"),
-    ("sushi", "SUSHI", "🍣", 1, "Sushi!"),
+    ("burger", "BURGER", "🍔", 0, "Burger!"),
+    ("sushi", "SUSHI", "🍣", 0, "Sushi!"),
+    ("tacos", "TACOS", "🌮", 1, "Tacos!"),
     ("croissant", "CROISSANT", "🥐", 1, "Croissant!"),
-    ("avocado", "AVOCADO", "🥑", 2, "Avocado!"),
+    ("steak", "STEAK", "🥩", 2, "Steak!"),
     ("dumplings", "DUMPLINGS", "🥟", 2, "Dumplings!"),
-    ("pretzel", "PRETZEL", "🥨", 2, "Pretzel!"),
-    ("dragon_fruit", "DRAGON FRUIT", None, 3, "Dragon fruit!"),
-    ("artichoke", "ARTICHOKE", None, 3, "Artichoke!"),
+    ("curry", "CURRY", "🍛", 2, "Curry!"),
+    ("paella", "PAELLA", "🥘", 3, "Paella!"),
+    ("falafel", "FALAFEL", "🧆", 3, "Falafel!"),
 ]
 
 
@@ -119,7 +119,18 @@ def pill(text, size, fill, text_col=NAVY, icon=None, pad=44, h=None, outline=(0,
 
 def photo_card(path, label):
     """Square, centre-cropped photo with rounded corners, white frame and shadow."""
-    if path:
+    if path and Image.open(path).mode in ("RGBA", "LA", "P"):
+        # transparent illustration: place it on a warm, softly lit "plate"
+        art = Image.open(path).convert("RGBA")
+        src = vgradient(PHOTO, PHOTO, (255, 247, 232), (246, 214, 172)).convert("RGBA")
+        src.alpha_composite(radial_glow(PHOTO, PHOTO, PHOTO / 2, PHOTO * 0.42, PHOTO * 0.6, (255, 255, 255), 0.85))
+        art = art.resize((640, 640), Image.LANCZOS)
+        sh = Image.new("RGBA", art.size, (90, 50, 10, 0))
+        sh.putalpha(art.getchannel("A").point(lambda v: v * 0.35))
+        paste_center(src, sh.filter(ImageFilter.GaussianBlur(16)), PHOTO / 2 + 8, PHOTO / 2 + 30)
+        paste_center(src, art, PHOTO / 2, PHOTO / 2)
+        src = src.convert("RGB")
+    elif path:
         src = Image.open(path).convert("RGB")
         s = min(src.size)
         src = src.crop(((src.width - s) // 2, (src.height - s) // 2, (src.width + s) // 2, (src.height + s) // 2))

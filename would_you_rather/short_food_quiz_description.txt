@@ -2,7 +2,7 @@ TITLE
 Can You Name ALL 10 Foods? 🍔 Guess the Food by the Picture! #shorts
 
 DESCRIPTION
-How many foods can you name? 🍕 10 pictures, 4 difficulty levels, from EASY to HARD, and only 5 seconds each! ⏱️
+How many foods can you name? 🍕 10 dishes from around the world, 4 difficulty levels from EASY to HARD, and only 5 seconds each! ⏱️
 
 🏆 0–3: Beginner
 🏆 4–6: Food Explorer
@@ -12,6 +12,6 @@ How many foods can you name? 🍕 10 pictures, 4 difficulty levels, from EASY to
 Comment your score below! 👇
 Subscribe to Quizzies for more quizzes!
 
-📸 Photo credits: (paste food_images/CREDITS.txt here)
+Food illustrations: Noto Emoji by Google (Apache License 2.0).
 
 #shorts #quiz #food #guessthefood #foodquiz #trivia #quizzies
