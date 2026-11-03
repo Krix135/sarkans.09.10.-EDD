@@ -40,6 +40,7 @@ mv.W, mv.H = W, H
 NAVY = (14, 20, 52)
 COUNTDOWN = 5
 IMG_DIR = os.path.join(HERE, "food_images")
+SET = "photos"  # sub-folder of IMG_DIR, chosen with --set
 PHOTO = 800              # photo card size
 PX, PY = 520, 850        # photo centre (nudged left of the Shorts like/comment buttons)
 TIMER_Y = 1400
@@ -51,18 +52,32 @@ LEVELS = [  # name, colour, emoji, spoken
     ("HARD", (231, 76, 60), "🔴", "Level four. Hard! Only experts get these."),
 ]
 
-FOODS = [  # key (= picture file name), answer on screen, emoji for the reveal (or None), level, spoken
-    ("pizza", "PIZZA", "🍕", 0, "Pizza!"),
-    ("burger", "BURGER", "🍔", 0, "Burger!"),
-    ("sushi", "SUSHI", "🍣", 0, "Sushi!"),
-    ("tacos", "TACOS", "🌮", 1, "Tacos!"),
-    ("croissant", "CROISSANT", "🥐", 1, "Croissant!"),
-    ("steak", "STEAK", "🥩", 2, "Steak!"),
-    ("dumplings", "DUMPLINGS", "🥟", 2, "Dumplings!"),
-    ("curry", "CURRY", "🍛", 2, "Curry!"),
-    ("paella", "PAELLA", "🥘", 3, "Paella!"),
-    ("falafel", "FALAFEL", "🧆", 3, "Falafel!"),
-]
+FOOD_SETS = {  # key (= picture file name), answer on screen, emoji for the reveal (or None), level, spoken
+    "photos": [
+        ("pizza", "PIZZA", "🍕", 0, "Pizza!"),
+        ("banana", "BANANA", "🍌", 0, "Banana!"),
+        ("hamburger", "HAMBURGER", "🍔", 0, "Hamburger!"),
+        ("sushi", "SUSHI", "🍣", 1, "Sushi!"),
+        ("croissant", "CROISSANT", "🥐", 1, "Croissant!"),
+        ("avocado", "AVOCADO", "🥑", 2, "Avocado!"),
+        ("dumplings", "DUMPLINGS", "🥟", 2, "Dumplings!"),
+        ("pretzel", "PRETZEL", "🥨", 2, "Pretzel!"),
+        ("dragon_fruit", "DRAGON FRUIT", None, 3, "Dragon fruit!"),
+        ("artichoke", "ARTICHOKE", None, 3, "Artichoke!"),
+    ],
+    "illustrated": [
+        ("pizza", "PIZZA", "🍕", 0, "Pizza!"),
+        ("burger", "BURGER", "🍔", 0, "Burger!"),
+        ("sushi", "SUSHI", "🍣", 0, "Sushi!"),
+        ("tacos", "TACOS", "🌮", 1, "Tacos!"),
+        ("croissant", "CROISSANT", "🥐", 1, "Croissant!"),
+        ("steak", "STEAK", "🥩", 2, "Steak!"),
+        ("dumplings", "DUMPLINGS", "🥟", 2, "Dumplings!"),
+        ("curry", "CURRY", "🍛", 2, "Curry!"),
+        ("paella", "PAELLA", "🥘", 3, "Paella!"),
+        ("falafel", "FALAFEL", "🧆", 3, "Falafel!"),
+    ],
+}
 
 
 # ----------------------------------------------------------------------------
@@ -132,9 +147,21 @@ def photo_card(path, label):
         src = src.convert("RGB")
     elif path:
         src = Image.open(path).convert("RGB")
-        s = min(src.size)
-        src = src.crop(((src.width - s) // 2, (src.height - s) // 2, (src.width + s) // 2, (src.height + s) // 2))
-        src = src.resize((PHOTO, PHOTO), Image.LANCZOS)
+        ratio = src.width / src.height
+        if 0.88 <= ratio <= 1.14:  # close to square: centre-crop
+            s = min(src.size)
+            src = src.crop(((src.width - s) // 2, (src.height - s) // 2,
+                            (src.width + s) // 2, (src.height + s) // 2)).resize((PHOTO, PHOTO), Image.LANCZOS)
+        else:  # keep the whole dish visible, fill the rest with a blurred copy
+            s = max(PHOTO / src.width, PHOTO / src.height)
+            fill = src.resize((int(src.width * s) + 2, int(src.height * s) + 2), Image.LANCZOS)
+            fill = fill.crop(((fill.width - PHOTO) // 2, (fill.height - PHOTO) // 2,
+                              (fill.width - PHOTO) // 2 + PHOTO, (fill.height - PHOTO) // 2 + PHOTO))
+            fill = Image.eval(fill.filter(ImageFilter.GaussianBlur(28)), lambda v: int(v * 0.8))
+            s = min(PHOTO / src.width, PHOTO / src.height)
+            fit = src.resize((int(src.width * s), int(src.height * s)), Image.LANCZOS)
+            fill.paste(fit, ((PHOTO - fit.width) // 2, (PHOTO - fit.height) // 2))
+            src = fill
     else:  # layout preview only, never used for a real render
         src = vgradient(PHOTO, PHOTO, (120, 120, 130), (70, 70, 80))
         tmp = src.convert("RGBA")
@@ -255,11 +282,11 @@ class FoodQuestion(mv.Scene):
         key, answer, emo, level, spoken = food
         self.level = level
         path = None
-        hits = sorted(glob.glob(os.path.join(IMG_DIR, key + ".*")))
+        hits = sorted(glob.glob(os.path.join(IMG_DIR, SET, key + ".*")))
         if hits:
             path = hits[0]
         elif not placeholders:
-            raise FileNotFoundError(f"missing photo for {key} in {IMG_DIR}")
+            raise FileNotFoundError(f"missing picture for {key} in {os.path.join(IMG_DIR, SET)}")
         self.photo = photo_card(path, answer)
         self.t_in, self.cd = 0.0, 0.3
         self.reveal = self.cd + COUNTDOWN
@@ -408,7 +435,7 @@ def build(placeholders):
     bg = swirl_bg()
     scenes = [FoodIntro(tts, bg)]
     level = -1
-    for i, food in enumerate(FOODS, 1):
+    for i, food in enumerate(FOOD_SETS[SET], 1):
         if food[3] != level:
             level = food[3]
             scenes.append(LevelCard(tts, level, bg))
@@ -423,12 +450,17 @@ def build(placeholders):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--out", default=os.path.join(HERE, "short_guess_the_food.mp4"))
+    ap.add_argument("--set", default="photos", choices=list(FOOD_SETS),
+                    help="photos (food_images/photos) or illustrated (food_images/illustrated)")
+    ap.add_argument("--out", default=None)
     ap.add_argument("--stills", default=None)
     ap.add_argument("--preview-placeholders", action="store_true",
                     help="grey boxes instead of photos (layout test only, stills only)")
     ap.add_argument("--workers", type=int, default=os.cpu_count() or 2)
     args = ap.parse_args()
+    global SET
+    SET = args.set
+    args.out = args.out or os.path.join(HERE, f"short_guess_the_food_{SET}.mp4")
     if args.preview_placeholders and not args.stills:
         sys.exit("--preview-placeholders is only for --stills; a real video needs real photos")
     try:
