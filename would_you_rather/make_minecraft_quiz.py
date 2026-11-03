@@ -972,7 +972,72 @@ def make_chiptune(total):
     return music / (np.abs(music).max() + 1e-9)
 
 
-def mix(scenes, starts, total):
+def piano_note(freq, vel=0.6, ring=3.2):
+    """Soft synthesised piano tone: slightly inharmonic partials, two detuned strings, felt hammer."""
+    t = tt(ring)
+    out = np.zeros_like(t)
+    base = 0.9 + 0.7 * (freq / 261.6)
+    for n in range(1, 9):
+        fn = n * freq * math.sqrt(1 + 0.0004 * n * n)
+        if fn > 8000:
+            break
+        amp = (1 / n ** 1.35) * (0.45 + 0.4 * vel) ** (n - 1)
+        dn = base * (0.6 + 0.45 * n)
+        e = 0.55 * np.exp(-t * dn * 2.4) + 0.45 * np.exp(-t * dn * 0.45)
+        out += amp * 0.5 * (np.sin(2 * np.pi * fn * t) + np.sin(2 * np.pi * fn * 1.0008 * t + n)) * e
+    out *= np.minimum(1, t / 0.005)
+    out[: int(0.02 * SR)] += lowpass(np.random.default_rng(int(freq)).standard_normal(int(0.02 * SR)), 1500) * 0.03
+    fade = int(0.3 * SR)
+    out[-fade:] *= np.linspace(1, 0, fade)
+    return out * vel
+
+
+def make_piano(total):
+    """Original calm piano piece (Cmaj7 - Am7 - Fmaj7 - G), loops seamlessly."""
+    from scipy.signal import fftconvolve
+    bpm = 76
+    beat = 60 / bpm
+    chords = [(48, (48, 55, 59, 64)), (45, (45, 52, 55, 60)), (41, (41, 48, 52, 57)), (43, (43, 50, 55, 59))]
+    melody = {0: [(0, 76, .62), (2, 79, .5), (3, 74, .45)], 1: [(0, 72, .6), (3, 76, .45)],
+              2: [(0, 81, .62), (1.5, 79, .4), (2, 76, .5)], 3: [(0, 74, .55), (2, 71, .45), (3, 74, .4)],
+              4: [(0, 76, .55), (1, 79, .55), (2, 84, .62)], 5: [(0, 83, .58), (1.5, 79, .4), (2, 76, .5)],
+              6: [(0, 81, .55), (1, 79, .45), (2, 77, .45), (3, 72, .45)], 7: [(0, 74, .55), (2, 67, .45)]}
+    L = 8 * 4 * beat
+    buf = np.zeros(int((L + 4) * SR))
+    cache = {}
+
+    def note(m, vel, at):
+        key = (m, round(vel, 2))
+        if key not in cache:
+            cache[key] = piano_note(midi(m), vel)
+        sig = cache[key]
+        st = int(at * SR)
+        buf[st:st + len(sig)] += sig[: len(buf) - st]
+
+    for b in range(8):
+        root, v = chords[b % 4]
+        t0 = b * 4 * beat
+        note(root - 12, 0.38, t0)
+        for k, idx in enumerate((0, 1, 2, 3, 2, 1, 2, 3)):
+            note(v[idx], 0.26 + 0.04 * (k == 0), t0 + k * beat / 2)
+        for pos, m, vel in melody[b]:
+            note(m, vel, t0 + pos * beat)
+    n = int(L * SR)
+    tail = buf[n:]
+    loop = buf[:n].copy()
+    loop[:len(tail)] += tail[:n]
+    ir_t = tt(2.6)
+    ir = lowpass(np.random.default_rng(8).standard_normal(len(ir_t)), 5000) * np.exp(-ir_t / 0.55)
+    ir /= np.sqrt(np.sum(ir ** 2))
+    wet = fftconvolve(np.concatenate([loop, loop]), ir)[n:2 * n]  # circular reverb so the loop is seamless
+    loop = 0.8 * loop + 0.35 * wet
+    music = np.tile(loop, int(math.ceil(total / L)) + 1)[: int(total * SR)]
+    fade = int(0.8 * SR)
+    music[-fade:] *= np.linspace(1, 0.3, fade)
+    return music / (np.abs(music).max() + 1e-9)
+
+
+def mix(scenes, starts, total, music_kind="piano"):
     n = int(total * SR) + SR
     voice, fx = np.zeros(n), np.zeros(n)
     for sc, st in zip(scenes, starts):
@@ -983,11 +1048,11 @@ def mix(scenes, starts, total):
             i = int((st + at) * SR)
             fx[i:i + len(arr)] += arr[:n - i] * g
     music = np.zeros(n)
-    m = make_chiptune(total)
+    m = make_piano(total) if music_kind == "piano" else make_chiptune(total)
     music[:len(m)] = m
     envv = lowpass(np.abs(voice), 8)
-    duck = lowpass(1 - 0.55 * np.clip(envv / 0.05, 0, 1), 3)
-    out = voice + fx * 0.6 + music * 0.2 * duck
+    duck = lowpass(1 - 0.5 * np.clip(envv / 0.05, 0, 1), 3)
+    out = voice + fx * 0.6 + music * (0.3 if music_kind == "piano" else 0.2) * duck
     out = np.tanh(out * 1.1) / np.tanh(1.1)
     return (np.clip(np.stack([out, out], 1), -1, 1) * 32767).astype(np.int16)
 
@@ -1054,6 +1119,8 @@ class Question(mv.Scene):
             v = tts.say(spoken, speed=speed)
             if len(v) / SR <= COUNTDOWN - 0.25:
                 break
+        else:
+            print(f"warning: question {idx} narration is {len(v) / SR:.1f}s", flush=True)
         self.voices.append((T_IN + 0.05, v))
         a = tts.say(q["say"], speed=1.12)
         self.reveal = T_IN + COUNTDOWN
@@ -1241,14 +1308,14 @@ class Ending(mv.Scene):
 
 # ----------------------------------------------------------------------------
 
-def build():
+def build(voice="bm_george"):
     ensure_pixfont()
     tex = make_textures()
     print("Rendering worlds ...", flush=True)
     worlds = build_worlds(tex)
     icons = make_icons(tex)
     ui = UI(icons)
-    tts = mv.TTS()
+    tts = mv.TTS(voice, "en-gb" if voice.startswith("b") else "en-us")
     scenes = [Intro(tts, worlds, ui)]
     prev = None
     for i, q in enumerate(QUESTIONS, 1):
@@ -1288,8 +1355,10 @@ def main():
     ap.add_argument("--stills", default=None)
     ap.add_argument("--cover", action="store_true")
     ap.add_argument("--workers", type=int, default=os.cpu_count() or 2)
+    ap.add_argument("--voice", default="bm_george", help="Kokoro voice, e.g. bm_george, af_heart, am_puck")
+    ap.add_argument("--music", default="piano", choices=["piano", "chiptune"])
     args = ap.parse_args()
-    scenes, starts, total, worlds, icons = build()
+    scenes, starts, total, worlds, icons = build(args.voice)
     for sc, st in zip(scenes, starts):
         print(f"  {st:6.2f}s  {type(sc).__name__} {getattr(sc, 'idx', '')}")
     print(f"Duration {total:.1f}s")
@@ -1309,7 +1378,7 @@ def main():
     shutil.rmtree(work, ignore_errors=True)
     os.makedirs(work)
     wav = os.path.join(work, "audio.wav")
-    mv.write_wav(wav, mix(scenes, starts, total))
+    mv.write_wav(wav, mix(scenes, starts, total, args.music))
     nframes = int(total * FPS)
     n = max(1, args.workers)
     bounds = [round(nframes * k / n) for k in range(n + 1)]

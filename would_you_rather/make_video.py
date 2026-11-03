@@ -387,13 +387,14 @@ def speakable(text):
 
 
 class TTS:
-    def __init__(self):
-        self.k = None
+    def __init__(self, voice=VOICE, lang="en-us"):
+        self.k, self.voice, self.lang = None, voice, lang
         os.makedirs(CACHE_DIR, exist_ok=True)
 
     def say(self, text, speed=1.04):
         text = speakable(text)
-        key = hashlib.sha1(f"{VOICE}|{speed}|{text}".encode()).hexdigest()[:16]
+        lang = "" if self.lang == "en-us" else f"|{self.lang}"  # keeps old cache keys valid
+        key = hashlib.sha1(f"{self.voice}|{speed}|{text}{lang}".encode()).hexdigest()[:16]
         path = os.path.join(CACHE_DIR, key + ".npy")
         if os.path.exists(path):
             return np.load(path)
@@ -401,7 +402,7 @@ class TTS:
             ensure_models()
             from kokoro_onnx import Kokoro
             self.k = Kokoro(os.path.join(MODEL_DIR, "kokoro.onnx"), os.path.join(MODEL_DIR, "voices.bin"))
-        samples, sr = self.k.create(text, voice=VOICE, speed=speed, lang="en-us")
+        samples, sr = self.k.create(text, voice=self.voice, speed=speed, lang=self.lang)
         audio = resample_poly(samples.astype(np.float64), SR, sr)
         nz = np.nonzero(np.abs(audio) > 0.01)[0]  # trim silence
         if len(nz):
