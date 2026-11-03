@@ -63,11 +63,12 @@ QUESTIONS = [
          scene="night2", icon="enderman", cam=((2300, 1600, 1.15), (2000, 1500, 1.25)), col=(200, 60, 255)),
     dict(q="What happens if you try to *sleep* in the *Nether*?", a="THE BED EXPLODES!", say="Your bed explodes!",
          level="MEDIUM", scene="nether", icon="bed", cam=("portal", 1.22, 1.08), fx="explode", col=(230, 40, 40)),
-    dict(q="Which music disc looks *cracked* and *broken*?", a="DISC 11", say="Disc eleven!", level="HARD",
-         scene="cave", icon="disc", cam=((1800, 1450, 1.05), (2000, 1650, 1.25)), col=(160, 160, 170)),
-    dict(q="Which boss can you respawn with *4 End Crystals*?", a="ENDER DRAGON", say="The Ender Dragon!",
-         level="HARD", scene="end", icon="dragon", cam=((2048, 1340, 1.0), (2048, 1560, 1.15)), fx="dragon",
-         col=(200, 60, 255)),
+    dict(q="Which Minecraft mob turns into a *Drowned* when it stays *underwater* long enough?", a="ZOMBIE",
+         say="Zombie!", level="HARD", scene="ocean", icon="zombie", cam=((1980, 1480, 1.1), (2160, 1560, 1.22)),
+         col=(90, 180, 90)),
+    dict(q="What is one of the *RAREST* structures in Minecraft, found only in *Dark Forests*?",
+         a="WOODLAND MANSION", say="The Woodland Mansion!", level="HARD", scene="darkforest", icon="mansion",
+         cam=((2120, 1620, 1.25), (1960, 1460, 1.05)), col=(240, 200, 120)),
 ]
 INTRO_CAM = ((2048, 1500, 1.65), (2048, 1450, 1.05))
 
@@ -142,6 +143,8 @@ def rich_block(text, size, max_w, base=(255, 255, 255), hi=YELLOW, stroke=8, lin
         if len(wrap(font("Black", sz), max_w)) <= 2:
             size = sz
             break
+    while len(wrap(font("Black", size), max_w)) > 3 and size > 54:  # long questions: shrink to fit 3 lines
+        size -= 2
     f = font("Black", size)
     sp = f.getlength(" ")
     n = len(wrap(f, max_w))
@@ -287,6 +290,25 @@ def make_textures():
             d = math.hypot(x - 7.5, y - 9)
             deb[y, x] = (62, 44, 40) if int(d * 1.3) % 3 == 0 else (104, 76, 66) if (x + y) % 3 else (92, 66, 58)
     put("debris_side", deb)
+    put("dark_oak_side", log_side([(66, 43, 20), (54, 35, 16), (76, 52, 26)]))
+    put("dark_oak_top", log_top((50, 32, 14), [(96, 66, 34), (78, 52, 26)]))
+    put("dark_leaves", _pal(r, [(40, 90, 30), (30, 72, 22), (52, 108, 40), (22, 58, 16)]))
+
+    def planks(pal, seam):
+        a = _pal(r, pal)
+        a[[3, 7, 11, 15]] = seam
+        for row, x in ((1, 9), (5, 3), (9, 12), (13, 6)):
+            a[row - 1:row + 3, x] = seam
+        return a
+
+    put("planks", planks([(216, 201, 150), (204, 189, 138), (226, 212, 162)], (168, 152, 106)))
+    put("roof", planks([(72, 47, 23), (60, 39, 19), (84, 56, 29)], (40, 26, 12)))
+    gl = np.full((16, 16, 3), (165, 205, 235))
+    gl[[0, 15]] = (235, 242, 250)
+    gl[:, [0, 15]] = (235, 242, 250)
+    for k in range(3, 8):
+        gl[k, k + 2] = (235, 245, 255)
+    put("glass", gl)
     put("debris_top", log_top((80, 58, 52), [(120, 92, 80), (70, 50, 44)]))
     return T
 
@@ -303,10 +325,12 @@ BLOCKS = {
     21: ("diamond", "diamond", False), 22: ("redstone", "redstone", False), 23: ("debris_top", "debris_side", False),
     24: ("cactus_top", "cactus", False), 25: ("ice", "ice", False), 26: ("portal", "portal", True),
     27: ("snow", "snowy_leaves_side", False), 28: ("gravel", "gravel", False),
+    29: ("dark_oak_top", "dark_oak_side", False), 30: ("dark_leaves", "dark_leaves", False),
+    31: ("planks", "planks", False), 32: ("glass", "glass", False), 33: ("roof", "roof", False),
 }
 (GRASS, DIRT, STONE, SAND, SANDSTONE, SNOW, LOG, LEAVES, SPRUCE, SPRUCE_LEAVES, WATER, LAVA, OBSIDIAN,
  NETHERRACK, GLOWSTONE, SOUL_SAND, END_STONE, COAL, IRON, GOLD, DIAMOND, REDSTONE, DEBRIS, CACTUS, ICE, PORTAL,
- SNOWY_LEAVES, GRAVEL) = range(1, 29)
+ SNOWY_LEAVES, GRAVEL, DARK_OAK, DARK_LEAVES, PLANKS, GLASS, ROOF) = range(1, 34)
 
 # ----------------------------------------------------------------------------
 # isometric voxel renderer
@@ -471,6 +495,50 @@ def gen_overworld(seed, biome):
             spruce(vox, x, y, h, rng)
         elif biome == "desert" and rng.random() < 0.22:
             vox[x, y, h + 1:h + 1 + int(rng.integers(2, 4))] = CACTUS
+    return vox
+
+
+def gen_ocean(seed):
+    rng = np.random.default_rng(seed)
+    vox = np.zeros((N, N, ZMAX), np.uint8)
+    hm = (2 + fbm(seed, (16, 8, 4)) * 10).astype(int)
+    wl = 8
+    for x in range(N):
+        for y in range(N):
+            h = hm[x, y]
+            column(vox, x, y, h, SAND if h <= wl + 1 else GRASS, SAND if h <= wl + 1 else DIRT)
+            if h < wl:
+                vox[x, y, h + 1:wl + 1] = WATER
+    for _ in range(40):
+        x, y = rng.integers(3, N - 3, 2)
+        h = hm[x, y]
+        if h > wl + 1 and vox[x, y, h + 1] == 0 and rng.random() < 0.5:
+            tree(vox, x, y, h, rng)
+    return vox
+
+
+def gen_dark_forest(seed):
+    rng = np.random.default_rng(seed)
+    vox = np.zeros((N, N, ZMAX), np.uint8)
+    hm = (6 + fbm(seed) * 6).astype(int)
+    for x in range(N):
+        for y in range(N):
+            column(vox, x, y, hm[x, y], GRASS, DIRT)
+    for _ in range(170):
+        x, y = rng.integers(4, N - 5, 2)
+        z = int(max(hm[x, y], hm[x + 1, y], hm[x, y + 1], hm[x + 1, y + 1]))
+        if vox[x, y, z + 1] != 0 or vox[x, y, z + 3] != 0:
+            continue
+        th = int(rng.integers(5, 8))
+        vox[x:x + 2, y:y + 2, z + 1:z + 1 + th] = DARK_OAK  # 2x2 dark oak trunk
+        top = z + th
+        for dz, rad in ((-1, 3), (0, 3), (1, 2)):
+            for dx in range(-rad, rad + 2):
+                for dy in range(-rad, rad + 2):
+                    if abs(dx - 0.5) + abs(dy - 0.5) > rad + 1.2:
+                        continue
+                    if vox[x + dx, y + dy, top + dz] == 0:
+                        vox[x + dx, y + dy, top + dz] = DARK_LEAVES
     return vox
 
 
@@ -642,6 +710,8 @@ def build_worlds(tex):
          {LAVA: ((255, 120, 30), 110, 0.25), GLOWSTONE: ((255, 220, 120), 120, 0.35),
           PORTAL: ((180, 80, 255), 140, 0.5)}),
         ("end", lambda: gen_end(3), (0.9, 0.88, 1.0), (30, 14, 46), 0.4, "end", None),
+        ("ocean", lambda: gen_ocean(17), (1, 1, 1), (200, 225, 255), 0.38, "day", None),
+        ("darkforest", lambda: gen_dark_forest(29), (0.72, 0.8, 0.72), (70, 90, 70), 0.42, "day", None),
     ]
     extra = {}
     for i, (name, gen, amb, fog, fs, sky, glow) in enumerate(specs):
@@ -727,6 +797,32 @@ def make_icons(tex):
                                  ".............BBBBBB.............", "..............BBBB..............",
                                  "...............BB...............", "................B..............."],
                                 {"B": [(20, 16, 26), (32, 26, 40)], "P": (210, 60, 255)}, 9, 6)
+    Z1, Z2 = [(90, 150, 80), (80, 138, 70), (100, 160, 88)], [(60, 110, 55), (52, 98, 48)]
+    icons["zombie"] = grid_icon(["HHHHHHHH", "HHHHHHHH", "ZZZZZZZZ", "ZZZZZZZZ", "ZEEZZEEZ", "ZZZNNZZZ",
+                                 "ZZMMMMZZ", "ZZZZZZZZ"],
+                                {"H": Z2, "Z": Z1, "E": (20, 26, 20), "N": (60, 100, 52), "M": (40, 70, 36)}, 32, 7)
+    m = np.zeros((16, 14, 13), np.uint8)
+    x0, x1, y0, y1 = 1, 13, 1, 11
+    m[x0:x1 + 1, y0:y1 + 1, 0] = STONE
+    m[x0:x1 + 1, y0:y1 + 1, 1:8] = PLANKS
+    for z in (4,):
+        m[x0:x1 + 1, y0:y1 + 1, z] = DARK_OAK
+    for cx in (x0, x1, (x0 + x1) // 2):
+        for cy in (y0, y1):
+            m[cx, cy, 1:8] = DARK_OAK
+    for cy in (y0, (y0 + y1) // 2):
+        m[x1, cy, 1:8] = DARK_OAK
+    for z in (2, 3, 5, 6):
+        for xx in range(x0 + 2, x1 - 1, 3):
+            m[xx, y1, z] = GLASS
+            m[xx + 1, y1, z] = GLASS
+        for yy in range(y0 + 2, y1 - 1, 3):
+            m[x1, yy, z] = GLASS
+    for k, z in enumerate(range(8, 12)):
+        m[max(0, x0 - 1 + k):x1 + 2 - k, max(0, y0 - 1 + k):y1 + 2 - k, z] = ROOF
+    man, _ = render_voxels(m, SpriteCache(tex, (1, 1, 1), (0, 0, 0)), 0)
+    man = man.crop(man.getbbox())
+    icons["mansion"] = man.resize((300, int(300 * man.height / man.width)), Image.LANCZOS)
     island = np.zeros((11, 11, 10), np.uint8)
     for x in range(11):
         for y in range(11):
@@ -808,7 +904,7 @@ class UI:
         self.small = {}
         for k, v in icons.items():  # dark icons get a soft glow so they stay visible in the dark slots
             sm = fit(v, 64)
-            if k in ("dragon", "enderman", "disc", "obsidian"):
+            if k in ("dragon", "enderman", "disc", "obsidian", "mansion"):
                 g = radial_glow(84, 84, 42, 42, 44, (200, 140, 255), 0.75)
                 paste_center(g, sm, 42, 42)
                 sm = g
