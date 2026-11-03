@@ -65,10 +65,10 @@ QUESTIONS = [
          level="MEDIUM", scene="nether", icon="bed", cam=("portal", 1.22, 1.08), fx="explode", col=(230, 40, 40)),
     dict(q="Which Minecraft mob turns into a *Drowned* when it stays *underwater* long enough?", a="ZOMBIE",
          say="Zombie!", level="HARD", scene="ocean", icon="zombie", cam=((1980, 1480, 1.1), (2160, 1560, 1.22)),
-         col=(90, 180, 90)),
+         col=(90, 180, 90), time=7),
     dict(q="What is one of the *RAREST* structures in Minecraft, found only in *Dark Forests*?",
          a="WOODLAND MANSION", say="The Woodland Mansion!", level="HARD", scene="darkforest", icon="mansion",
-         cam=((2120, 1620, 1.25), (1960, 1460, 1.05)), col=(240, 200, 120)),
+         cam=((2120, 1620, 1.25), (1960, 1460, 1.05)), col=(240, 200, 120), time=7),
 ]
 INTRO_CAM = ((2048, 1500, 1.65), (2048, 1450, 1.05))
 
@@ -900,7 +900,7 @@ class UI:
         self.selector = sel
         self.shade = shade_overlays()
         self.nums = {(n, red): ptext(str(n), 160, fill=(255, 80, 70) if red else (255, 255, 255))
-                     for n in range(1, 5) for red in (False, True)}
+                     for n in range(1, 10) for red in (False, True)}
         self.small = {}
         for k, v in icons.items():  # dark icons get a soft glow so they stay visible in the dark slots
             sm = fit(v, 64)
@@ -1211,20 +1211,21 @@ class Question(mv.Scene):
             cam = ((px - 290 / cam[1], py + 240 / cam[1], cam[1]), (px - 290 / cam[2], py + 240 / cam[2], cam[2]))
         self.cam = cam
         spoken = q["q"].replace("*", "")
+        self.cd_len = q.get("time", COUNTDOWN)  # seconds to answer
         for speed in (1.15, 1.25, 1.35):
             v = tts.say(spoken, speed=speed)
-            if len(v) / SR <= COUNTDOWN - 0.25:
+            if len(v) / SR <= self.cd_len - 0.25:
                 break
         else:
             print(f"warning: question {idx} narration is {len(v) / SR:.1f}s", flush=True)
         self.voices.append((T_IN + 0.05, v))
         a = tts.say(q["say"], speed=1.12)
-        self.reveal = T_IN + COUNTDOWN
+        self.reveal = T_IN + self.cd_len
         self.voices.append((self.reveal + 0.12, a))
         self.dur = self.reveal + T_HOLD
         self.sounds.append((0.0, sfx_whoosh(0.3), 0.5))
-        for k in range(4):
-            self.sounds.append((T_IN + k, sfx_tock(high=k >= 2), 1.0))
+        for k in range(int(self.cd_len)):
+            self.sounds.append((T_IN + k, sfx_tock(high=k >= self.cd_len - 2), 1.0))
         self.sounds += [(self.reveal, sfx_pling(), 1.0), (self.reveal, sfx_crunch(), 0.8),
                         (self.reveal + 0.62, sfx_crunch(), 0.5)]
         fx = q.get("fx")
@@ -1296,14 +1297,14 @@ class Question(mv.Scene):
         # centre frame: countdown, then the answer
         if rv < 0:
             cd = max(0.0, t - T_IN)
-            n = max(1, 4 - int(cd))
+            n = max(1, int(self.cd_len) - int(cd))
             red = n <= 2
             fk = ease_out_back((t - 0.1) / 0.3)
             paste_center(im, scaled(ui.frame, fk * (1 + 0.03 * math.sin(t * 12) if red else fk)), W / 2, FRAME_Y)
             pop = 1 + 0.35 * (1 - ease_out_cubic((cd % 1) / 0.3))
             paste_center(im, scaled(ui.nums[(n, red)], pop * fk), W / 2, FRAME_Y + 4)
             # draining time bar
-            frac = 1 - clamp(cd / COUNTDOWN)
+            frac = 1 - clamp(cd / self.cd_len)
             d = ImageDraw.Draw(im)
             bw, bh, segs = 760, 34, 20
             x0 = W / 2 - bw / 2
