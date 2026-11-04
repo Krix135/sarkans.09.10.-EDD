@@ -53,6 +53,33 @@ QUESTIONS = [  # picture key, name on screen, Italian shout, level, British prom
 PURPLE = (150, 70, 255)
 
 
+REAL_DIR = os.path.join(HERE, "brainrot_real")  # real pictures: brainrot_real/<key>.jpg (or .png)
+
+
+def real_picture(key, size=700):
+    """Framed real picture for a character if one was supplied, else None (emoji fusion is used)."""
+    import glob
+    hits = sorted(glob.glob(os.path.join(REAL_DIR, key + ".*")))
+    if not hits:
+        return None
+    src = Image.open(hits[0]).convert("RGB")
+    s = min(size / src.width, size / src.height)
+    src = src.resize((int(src.width * s), int(src.height * s)), Image.LANCZOS)
+    border, pad = 14, 50
+    card = mq.rounded_card(src.width + 2 * border, src.height + 2 * border, 40, (255, 255, 255, 255))
+    mask = mq.rounded_card(src.width, src.height, 30, (255, 255, 255, 255)).getchannel("A")
+    ph = src.convert("RGBA")
+    ph.putalpha(mask)
+    card.alpha_composite(ph, (border, border))
+    out = Image.new("RGBA", (card.width + 2 * pad, card.height + 2 * pad))
+    sh = mq.rounded_card(card.width, card.height, 40, (0, 0, 0, 170))
+    out.alpha_composite(sh, (pad + 8, pad + 22))
+    from PIL import ImageFilter
+    out = out.filter(ImageFilter.GaussianBlur(16))
+    out.alpha_composite(card, (pad, pad))
+    return out
+
+
 def art(name, size):
     return Image.open(os.path.join(bp.ART, name + ".png")).convert("RGBA").resize((size, size), Image.LANCZOS)
 
@@ -142,7 +169,7 @@ class Question(Base):
             self.banner = mc_button(f"{level} MODE", 700, 120, col, 46)
         self.head = ptext(f"BRAINROT {idx}/10", 40)
         self.badge = mc_button(level, 300, 84, col, 36)
-        self.pic = bp.picture(key)
+        self.pic = real_picture(key) or bp.picture(key)
         self.glow = radial_glow(900, 900, 450, 450, 450, (255, 255, 255), 0.55)
         self.rays = mq.sunburst(1000, (255, 120, 220) if idx % 2 else (120, 200, 255), 16)
         tq = bold("WHO IS THIS?", 96, fill=YELLOW, stroke=9)
