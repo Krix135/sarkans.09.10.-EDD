@@ -669,8 +669,8 @@ class Short(mv.Scene):
 def build():
     print("Drawing the cartoon ...", flush=True)
     scene = draw_scene()
-    tts = mv.TTS("am_onyx", "en-us")
-    ceo = mv.TTS("bm_lewis", "en-gb")
+    tts = mv.TTS("af_heart", "en-us")  # highest-rated Kokoro voice
+    ceo = mv.TTS("bm_george", "en-gb")
     sc = Short(scene, tts, ceo)
     return [sc], [0.0], sc.dur, scene
 
