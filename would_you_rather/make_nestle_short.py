@@ -41,19 +41,19 @@ FACTS = [  # tag, main line, small line, narration, camera target (x, y, zoom)
     ("🇺🇸", "MICHIGAN · 2018", "Nestlé got approval to pump 400 gallons of groundwater A MINUTE…",
      "…paying about $200 a year in state fees. Flint, in the same state, was still on bottled water.",
      "In 2018, Michigan let Nestlé pump four hundred gallons of groundwater a minute, "
-     "for about two hundred dollars a year in fees.", (930, 1700, 1.35)),
+     "for about two hundred dollars a year in fees.", (850, 1530, 1.25)),
     ("🎙", "2005", "Its boss at the time called the idea of water as a human right “extreme”",
      "He later said he was quoted out of context.",
      "In 2005, its boss at the time called the idea that water is a human right, extreme. "
-     "He later said he was taken out of context.", (700, 1800, 1.3)),
+     "He later said he was taken out of context.", (800, 1560, 1.3)),
     ("🇫🇷", "FRANCE · 2024", "Nestlé admitted using banned filters on its “natural mineral water”",
      "It agreed to pay a €2 million fine to avoid a trial.",
      "In 2024, Nestlé admitted using banned filters on its natural mineral water in France, "
-     "and paid two million euros to avoid a trial.", (380, 1950, 1.25)),
+     "and paid two million euros to avoid a trial.", (780, 1500, 1.2)),
     ("🍼", "SINCE 1977", "People have been boycotting Nestlé for almost 50 years…",
      "…over how it marketed baby formula in poorer countries.",
      "And people have been boycotting Nestlé since 1977, over how it marketed baby formula in poorer countries.",
-     (480, 1250, 1.15)),
+     (830, 1540, 1.28)),
 ]
 
 K_HOOK, K_AI, K_FACTORY, K_WIDE = (800, 1700, 1.45), (1700, 1080, 1.3), (620, 1600, 1.1), (1080, 1520, 0.72)
@@ -292,16 +292,17 @@ def draw_scene():
     return base
 
 
-def bubble_sprite():
-    f = ImageFont.truetype(COMIC, 58)
-    lines = ["LOOK, THEY'RE", "WASTING WATER!"]
+def bubble_sprite(lines=("LOOK, THEY'RE", "WASTING WATER!")):
     w, h = 560, 210
     p = P((w + 40, h + 110))
     p.ellipse((20, 10, w + 20, h + 10), (255, 255, 255), INK, 6)
     p.poly([(150, h - 15), (230, h - 5), (110, h + 95)], (255, 255, 255), None)
     p.line([(150, h - 7), (110, h + 95), (232, h + 2)], INK, 6)
+    size = 58
+    while max(ImageFont.truetype(COMIC, size).getlength(ln) for ln in lines) > w - 70:
+        size -= 2
     for i, ln in enumerate(lines):
-        p.text((w / 2 + 20, 80 + i * 66), ln, ImageFont.truetype(COMIC, 58), INK)
+        p.text((w / 2 + 20, 80 + i * 66), ln, ImageFont.truetype(COMIC, size), INK)
     return p.done()
 
 
@@ -369,74 +370,108 @@ def fact_card(i, fact):
     return out
 
 
+REACTIONS = [("💀", "😳"), ("🤡", "💀"), ("😳", "🧐"), ("💀", "😬")]
+CARD_Y = 700
+HEAD = (720, 1765)
+
+
+def chunks(text, n=3):
+    words = text.replace("A.I.", "AI").split()
+    return [" ".join(words[i:i + n]) for i in range(0, len(words), n)]
+
+
 class Short(mv.Scene):
     def __init__(self, scene, tts, ceo):
         super().__init__()
-        self.scene, self.bubble = scene, bubble_sprite()
+        self.scene = scene
+        self.bubble = bubble_sprite()
+        self.bubble2 = bubble_sprite(("ANYWAY… WANNA", "BUY SOME WATER?"))
         self.puff = soft_circle(120, (255, 255, 255, 255), 14)
         self.smog = soft_circle(120, (110, 100, 95, 255), 16)
         self.bottle = self._bottle_sprite()
-        T = []  # camera keyframes (time, (x, y, zoom))
-        t = 0.0
-        T.append((0.0, K_HOOK))
-        n1 = tts.say("Nestlé, when A.I. uses water:", speed=1.12)
-        self.voices.append((0.25, n1))
-        self.t_bubble = 0.25 + len(n1) / SR + 0.1
-        c = ceo.say("Look, they're wasting water!", speed=1.0)
-        self.voices.append((self.t_bubble + 0.12, c))
-        self.sounds += [(0.0, sfx_whoosh(0.4), 0.6), (self.t_bubble, sfx_pop(), 1.0)]
-        self.t_ai = self.t_bubble + 0.12 + len(c) / SR + 0.35
-        T.append((self.t_ai, K_HOOK))
-        T.append((self.t_ai + 1.0, K_AI))
-        n2 = tts.say("And yes, A.I. data centers really do use a lot of water to stay cool.", speed=1.12)
-        self.voices.append((self.t_ai + 0.3, n2))
+        self.subs = []
+        K = []
+
+        def narrate(at, text, speed=1.1, subs=True):
+            v = tts.say(text, speed=speed)
+            self.voices.append((at, v))
+            if subs:
+                parts = chunks(text)
+                total = sum(len(p) + 3 for p in parts)
+                tt0, dur = at, len(v) / SR
+                for p in parts:
+                    d = dur * (len(p) + 3) / total
+                    self.subs.append((tt0, tt0 + d, p))
+                    tt0 += d
+            return len(v) / SR
+
+        # 1) hook: the CEO line straight away
+        self.t_bubble = 0.05
+        c1 = ceo.say("Look, they're wasting water!", speed=1.0)
+        self.voices.append((0.15, c1))
+        self.sounds += [(0.0, mq.sfx_boom(), 0.6), (self.t_bubble, sfx_pop(), 1.0)]
+        self.t_ai = 0.15 + len(c1) / SR + 0.25
+        K += [(0.0, K_HOOK), (self.t_ai, K_HOOK), (self.t_ai + 0.9, K_AI)]
+        # 2) to be fair...
         self.sounds.append((self.t_ai, sfx_whoosh(0.6), 0.8))
-        self.t_mean = self.t_ai + 0.3 + len(n2) / SR + 0.3
-        T.append((self.t_mean, K_AI))
-        T.append((self.t_mean + 0.7, K_FACTORY))
-        n3 = tts.say("Meanwhile... Nestlé.", speed=1.05)
-        self.voices.append((self.t_mean + 0.35, n3))
-        self.sounds += [(self.t_mean, sfx_scratch(), 1.0), (self.t_mean + 0.35, mq.sfx_boom(), 0.7)]
-        t = self.t_mean + 0.35 + len(n3) / SR + 0.35
+        d = narrate(self.t_ai + 0.2, "Okay, to be fair... A.I. data centers really do use a lot of water to stay cool.")
+        self.t_mean = self.t_ai + 0.2 + d + 0.25
+        K += [(self.t_mean, K_AI), (self.t_mean + 0.6, K_FACTORY)]
+        # 3) meanwhile
+        d = narrate(self.t_mean + 0.3, "Meanwhile... Nestlé.", speed=1.0, subs=False)
+        self.sounds += [(self.t_mean, sfx_scratch(), 1.0), (self.t_mean + 0.3, mq.sfx_boom(), 0.8)]
+        t = self.t_mean + 0.3 + d + 0.3
+        self.punches = [self.t_mean + 0.3]
         self.facts = []
         for i, f in enumerate(FACTS):
-            v = tts.say(f[4], speed=1.12)
-            self.voices.append((t + 0.25, v))
-            self.sounds += [(t, mq.sfx_boom(), 0.8), (t, sfx_whoosh(0.3), 0.5)]
-            d = 0.25 + len(v) / SR + 0.55
-            self.facts.append((t, t + d, fact_card(i, f)))
-            T.append((t + 0.6, f[5]))
-            t += d
+            d = narrate(t + 0.25, f[4], subs=False)
+            self.sounds += [(t, mq.sfx_boom(), 0.9), (t, sfx_whoosh(0.3), 0.5), (t + 0.55, mq.sfx_crunch(), 1.0),
+                            (t + 0.62, sfx_pop(), 0.7)]
+            dur = 0.25 + d + 0.5
+            self.facts.append((t, t + dur, fact_card(i, f)))
+            self.punches.append(t + 0.55)
+            K.append((t + 0.5, f[5]))
+            t += dur
         self.t_end = t
-        T.append((t + 1.2, K_WIDE))
-        n4 = tts.say("So yes, A.I. uses water. But only one of them bottles it, and sells it back to you. "
-                     "Who's worse? Comment below!", speed=1.1)
-        self.voices.append((t + 0.4, n4))
-        self.sounds += [(t, sfx_whoosh(0.6), 0.8), (t + 0.4, mq.sfx_pling(), 0.6)]
-        self.dur = t + 0.4 + len(n4) / SR + 1.6
-        T.append((self.dur, K_WIDE))
-        self.keys = T
-        # text sprites
+        # 4) the conclusion, wide shot
+        K += [(t, FACTS[-1][5]), (t + 1.0, K_WIDE)]
+        self.sounds += [(t, sfx_whoosh(0.6), 0.8)]
+        d = narrate(t + 0.4, "So yes, A.I. uses water. But only one of them bottles it... and sells it back to you.")
+        self.t_ceo2 = t + 0.4 + d + 0.25
+        # 5) punchline: back on the CEO (loops into the first frame)
+        K += [(self.t_ceo2, K_WIDE), (self.t_ceo2 + 0.7, K_HOOK)]
+        c2 = ceo.say("Anyway... wanna buy some water?", speed=1.0)
+        self.voices.append((self.t_ceo2 + 0.6, c2))
+        self.sounds += [(self.t_ceo2, sfx_whoosh(0.5), 0.8), (self.t_ceo2 + 0.5, sfx_pop(), 1.0),
+                        (self.t_ceo2 + 0.9, mq.sfx_pling(), 0.6)]
+        self.dur = self.t_ceo2 + 0.6 + len(c2) / SR + 1.3
+        K.append((self.dur, K_HOOK))
+        self.keys = K
+        # sprites
         self.cap1 = [bold("NESTLÉ WHEN", 92), bold("AI USES WATER:", 92, fill=YELLOW)]
         self.sat = mq.mc_button("SATIRE", 220, 64, (200, 40, 40), 26)
-        self.cap_ai = [bold("AI DATA CENTERS:", 84, fill=(140, 210, 255)),
-                       bold("use a LOT of water for cooling", 50, stroke=6)]
         self.cap_mean = bold("MEANWHILE, NESTLÉ:", 110, fill=YELLOW, stroke=11, max_w=1000)
         self.end1 = [bold("BOTH USE WATER.", 92), bold("ONLY ONE BOTTLES IT", 80, fill=YELLOW),
                      bold("& SELLS IT BACK TO YOU.", 70, fill=YELLOW, max_w=1000)]
-        cta = bold("WHO'S WORSE? 🤔", 86)
-        e1, e2 = emoji("🤔", 84), emoji("👇", 80)
-        c1 = bold("WHO'S WORSE?", 86)
-        self.cta = Image.new("RGBA", (c1.width + e1.width + 10, max(c1.height, e1.height)))
-        self.cta.alpha_composite(c1, (0, (self.cta.height - c1.height) // 2))
-        self.cta.alpha_composite(e1, (c1.width + 10, (self.cta.height - e1.height) // 2))
-        c2 = bold("COMMENT BELOW", 64, stroke=7)
-        self.cta2 = Image.new("RGBA", (c2.width + e2.width + 10, max(c2.height, e2.height)))
-        self.cta2.alpha_composite(c2, (0, (self.cta2.height - c2.height) // 2))
-        self.cta2.alpha_composite(e2, (c2.width + 10, (self.cta2.height - e2.height) // 2))
+        self.cta = self._with_emoji(bold("WHO'S WORSE?", 92), "🤔", 88)
+        self.cta2 = self._with_emoji(bold("COMMENT BELOW", 66, stroke=7), "👇", 80)
         self.note = text_img("Satire · facts & sources in the description", font("Bold", 32, display=False),
                              fill=(235, 235, 240))
-        del cta
+        fw = int(font("Black", 56).getlength("FACT"))
+        st = rounded_card(fw + 130, 96, 22, (255, 255, 255, 235), outline=(30, 160, 70, 255), width=8)
+        ImageDraw.Draw(st).text((28, 48), "FACT", font=font("Black", 56), fill=(30, 160, 70), anchor="lm")
+        st.alpha_composite(emoji("✅", 56), (fw + 46, 20))
+        self.stamp = st.rotate(-10, Image.BICUBIC, expand=True)
+        self.react = [(emoji(a, 110), emoji(b, 110)) for a, b in REACTIONS]
+        self._txt = {}
+
+    @staticmethod
+    def _with_emoji(txt, e, size):
+        em = emoji(e, size)
+        out = Image.new("RGBA", (txt.width + em.width + 10, max(txt.height, em.height)))
+        out.alpha_composite(txt, (0, (out.height - txt.height) // 2))
+        out.alpha_composite(em, (txt.width + 10, (out.height - em.height) // 2))
+        return out
 
     @staticmethod
     def _bottle_sprite():
@@ -444,23 +479,79 @@ class Short(mv.Scene):
         draw_bottle(p, 40, 62, 0.0, 1.0)
         return p.done()
 
+    def sub_img(self, text):
+        if text not in self._txt:
+            self._txt[text] = bold(text.upper(), 76, stroke=9, max_w=1000)
+        return self._txt[text]
+
+    def counter_img(self, n):
+        key = ("c", n)
+        if key not in self._txt:
+            card = rounded_card(860, 170, 30, (12, 18, 40, 230), outline=(90, 170, 255, 255), width=5)
+            d = ImageDraw.Draw(card)
+            d.text((430, 34), "AT NESTLÉ'S 2018 PERMIT (400 GAL/MIN), THAT'S", font=font("Bold", 26, display=False),
+                   fill=(190, 215, 255), anchor="mm")
+            e = emoji("💧", 64)
+            num = f"{n:,} GALLONS"
+            f = font("Black", 70)
+            w = f.getlength(num)
+            x0 = 430 - (w + e.width + 14) / 2
+            card.alpha_composite(e, (int(x0), 62))
+            d.text((x0 + e.width + 14, 96), num, font=f, fill=YELLOW, anchor="lm")
+            d.text((430, 148), "pumped since this video started", font=font("Bold", 24, display=False),
+                   fill=(190, 215, 255), anchor="mm")
+            self._txt[key] = card
+        return self._txt[key]
+
     # camera ---------------------------------------------------------------
     def cam(self, t):
         ks = self.keys
+        c = ks[-1][1]
         for (t0, a), (t1, b) in zip(ks, ks[1:]):
             if t <= t1:
                 k = clamp((t - t0) / max(1e-6, t1 - t0))
                 k = k * k * (3 - 2 * k)
                 c = tuple(a[i] + (b[i] - a[i]) * k for i in range(3))
                 break
-        else:
-            c = ks[-1][1]
         x, y, z = c
-        z *= 1 + 0.015 * math.sin(t * 0.9)  # gentle breathing zoom
+        z *= 1 + 0.015 * math.sin(t * 0.9)
+        sx = sy = 0.0
+        for p in self.punches:  # zoom punch + shake on every slam
+            if 0 <= t - p < 0.35:
+                k = 1 - (t - p) / 0.35
+                z *= 1 + 0.07 * k
+                sx += 18 * k * math.sin((t - p) * 90)
+                sy += 14 * k * math.cos((t - p) * 75)
         vw, vh = W / z, H / z
-        x0 = min(max(x - vw / 2, 0), CW - vw)
-        y0 = min(max(y - vh / 2, 0), CH - vh)
+        x0 = min(max(x - vw / 2 + sx, 0), CW - vw)
+        y0 = min(max(y - vh / 2 + sy, 0), CH - vh)
         return x0, y0, z
+
+    def facts_shown(self, t):
+        return sum(1 for t0, _, _ in self.facts if t >= t0 + 0.4)
+
+    def draw_ceo(self, im, S, z, t):
+        lvl = self.facts_shown(t)
+        d = ImageDraw.Draw(im)
+        cx, cy = HEAD
+        if lvl >= 2:  # smug face turns nervous
+            x1, y1 = S(cx + 2, 1722)
+            x2, y2 = S(cx + 82, 1826)
+            d.rounded_rectangle((x1, y1, x2, y2), radius=20 * z, fill=(255, 255, 255))
+            w = max(2, int(6 * z))
+            for a, b in (((cx + 8, 1742), (cx + 32, 1728)), ((cx + 58, 1728), (cx + 82, 1742))):
+                d.line((S(*a), S(*b)), fill=INK, width=w)
+            for ex in (cx + 22, cx + 68):
+                px, py = S(ex, 1760)
+                d.ellipse((px - 7 * z, py - 7 * z, px + 7 * z, py + 7 * z), fill=INK)
+            pts = [S(cx + 18 + k * 9, 1802 + (6 if k % 2 else -6)) for k in range(7)]
+            d.line(pts, fill=INK, width=w)
+        for k, (dx, dy) in enumerate(((-72, -40), (86, -58), (-88, 12), (84, 18))[:lvl]):
+            drip = ((t * 45 + k * 13) % 34)
+            px, py = S(cx + dx, cy + dy + drip)
+            r = 11 * z
+            d.polygon([(px, py - 2.2 * r), (px - r, py), (px + r, py)], fill=(130, 205, 255))
+            d.ellipse((px - r, py - r, px + r, py + r), fill=(130, 205, 255), outline=INK, width=max(1, int(2 * z)))
 
     def render(self, t):
         x0, y0, z = self.cam(t)
@@ -469,7 +560,6 @@ class Short(mv.Scene):
         def S(x, y):
             return (x - x0) * z, (y - y0) * z
         d = ImageDraw.Draw(im)
-        # animated details ------------------------------------------------
         for k in range(22):  # river shimmer
             y = HORIZON + ((t * 140 + k * 80) % (CH - HORIZON))
             off = ((k * 37) % 10 / 10 - 0.5) * 1.2 * river_half(y)
@@ -486,20 +576,20 @@ class Short(mv.Scene):
                     if s <= sl:
                         q = s / sl
                         wx, wy = a[0] + (b[0] - a[0]) * q, a[1] + (b[1] - a[1]) * q
-                        if 868 < wx < 1002 and 1588 < wy < 1702:  # hidden behind the PUMP sign
+                        if 868 < wx < 1002 and 1588 < wy < 1702:
                             break
                         px, py = S(wx, wy)
                         r = 9 * z
                         d.ellipse((px - r, py - r, px + r, py + r), fill=(90, 175, 245, 255))
                         break
                     s -= sl
-        for k in range(10):  # smog from stacks, steam from cooling towers
+        for k in range(10):  # smog and steam
             for (sx, sy), spr, drift in (((176, 470), self.smog, -25), ((326, 530), self.smog, -25),
                                          ((1380, 1450), self.puff, 18), ((1550, 1450), self.puff, 18)):
                 age = (t * 0.5 + k / 10) % 1
                 px, py = S(sx + drift * age * 6, sy - age * 320)
                 paste_center(im, scaled(spr, (0.5 + 1.3 * age) * z), px, py, 0.75 * (1 - age))
-        bx, by = 1260, 620  # wind turbine blades
+        bx, by = 1260, 620  # wind turbine
         for k in range(3):
             a = t * 1.8 + k * 2 * math.pi / 3
             tip = (bx + 115 * math.cos(a), by + 115 * math.sin(a))
@@ -507,61 +597,79 @@ class Short(mv.Scene):
             d.polygon([S(bx, by), S(*side), S(*tip)], fill=(245, 245, 250, 255), outline=INK)
         hx, hy = S(bx, by)
         d.ellipse((hx - 12 * z, hy - 12 * z, hx + 12 * z, hy + 12 * z), fill=(200, 200, 210), outline=INK)
-        for k in range(14):  # data center lights
+        for k in range(14):
             if int(t * 3 + k * 1.7) % 3:
                 lx, ly = S(1420 + (k % 7) * 92, 1440 - (k // 7) * 380)
                 d.ellipse((lx - 6 * z, ly - 6 * z, lx + 6 * z, ly + 6 * z), fill=(120, 255, 140, 255))
-        q = (t / 1.3) % 1  # a bottle rolling down the conveyor onto the pile
+        q = (t / 1.3) % 1
         bxp, byp = S(470 - 90 * q, 1560 + 270 * q)
         paste_center(im, scaled(self.bottle, z), bxp, byp)
-        # speech bubble -----------------------------------------------------
-        if t >= self.t_bubble and t < self.t_mean + 0.4:
-            k = ease_out_back((t - self.t_bubble) / 0.3)
-            fade = 1 - clamp((t - self.t_mean) / 0.4)
-            px, py = S(850, 1540)
-            paste_center(im, scaled(self.bubble, k * z * 0.95), px, py, fade)
-        # overlays ----------------------------------------------------------
+        self.draw_ceo(im, S, z, t)
+        # speech bubbles
+        px, py = S(850, 1540)
+        if t < self.t_mean + 0.4:
+            k = ease_out_back((t - self.t_bubble) / 0.25)
+            paste_center(im, scaled(self.bubble, k * z * 0.95), px, py, 1 - clamp((t - self.t_mean) / 0.4))
+        if t >= self.t_ceo2 + 0.5:
+            paste_center(im, scaled(self.bubble2, ease_out_back((t - self.t_ceo2 - 0.5) / 0.25) * z * 0.95), px, py)
+        # captions ----------------------------------------------------------
         if t < self.t_ai + 0.3:
             a = 1 - clamp((t - self.t_ai) / 0.3)
             for i, c in enumerate(self.cap1):
-                paste_center(im, scaled(c, ease_out_back((t - 0.05 - 0.12 * i) / 0.3)), W / 2, 250 + i * 105, a)
-            paste_center(im, scaled(self.sat, ease_out_back((t - 0.4) / 0.3)), W / 2, 470, a)
-        elif t < self.t_mean:
-            k = ease_out_back((t - self.t_ai - 0.3) / 0.3)
-            a = 1 - clamp((t - self.t_mean + 0.2) / 0.2)
-            for i, c in enumerate(self.cap_ai):
-                paste_center(im, scaled(c, k), W / 2, 270 + i * 95, a)
-        in_facts = self.facts[0][0] - 0.3 <= t < self.t_end + 0.3
-        if t >= self.t_mean and t < self.t_end + 0.3:
-            dim = clamp((t - self.facts[0][0] + 0.3) / 0.3) * (1 - clamp((t - self.t_end) / 0.3))
+                paste_center(im, scaled(c, ease_out_back((t + 0.2 - 0.1 * i) / 0.25)), W / 2, 250 + i * 105, a)
+            paste_center(im, scaled(self.sat, ease_out_back((t - 0.15) / 0.25)), W / 2, 470, a)
+        f0 = self.facts[0][0]
+        if self.t_mean <= t < self.t_end + 0.3:
+            dim = clamp((t - f0 + 0.3) / 0.3) * (1 - clamp((t - self.t_end) / 0.3))
             if dim > 0:
-                im.alpha_composite(Image.new("RGBA", (W, H), (0, 0, 0, int(115 * dim))))
-            s = 1 + 1.2 * (1 - ease_out_cubic((t - self.t_mean - 0.3) / 0.18))
-            a = clamp((t - self.t_mean - 0.3) / 0.08)
-            paste_center(im, scaled(self.cap_mean, s).rotate(-3, Image.BICUBIC, expand=True), W / 2, 280, a)
-        if in_facts:
-            for t0, t1, card in self.facts:
+                im.alpha_composite(Image.new("RGBA", (W, H), (0, 0, 0, int(110 * dim))))
+            if t < f0 + 0.5:
+                s = 1 + 1.2 * (1 - ease_out_cubic((t - self.t_mean - 0.3) / 0.18))
+                a = clamp((t - self.t_mean - 0.3) / 0.08) * (1 - clamp((t - f0 - 0.2) / 0.3))
+                paste_center(im, scaled(self.cap_mean, s).rotate(-3, Image.BICUBIC, expand=True), W / 2, 280, a)
+            else:
+                k = ease_out_back((t - f0 - 0.5) / 0.3) * (1 - ease_in_cubic((t - self.t_end) / 0.3))
+                paste_center(im, scaled(self.counter_img(int(t * 400 / 60)), k), W / 2, 285)
+            for i, (t0, t1, card) in enumerate(self.facts):
                 if t0 - 0.05 <= t < t1:
                     kin = ease_out_back((t - t0) / 0.35)
                     kout = ease_in_cubic((t - (t1 - 0.25)) / 0.25)
                     x = W / 2 + (1 - kin) * W - kout * W
-                    paste_center(im, card.rotate(1.5 * math.sin(t0 * 7), Image.BICUBIC, expand=True), x, 820)
-        if t >= self.t_end + 0.3:
+                    rot = 1.5 * math.sin(t0 * 7)
+                    paste_center(im, card.rotate(rot, Image.BICUBIC, expand=True), x, CARD_Y)
+                    if t >= t0 + 0.55:
+                        s = 1 + 1.3 * (1 - ease_out_cubic((t - t0 - 0.55) / 0.16))
+                        paste_center(im, scaled(self.stamp, s), x + card.width / 2 - 150,
+                                     CARD_Y + card.height / 2 - 30, clamp((t - t0 - 0.55) / 0.06))
+                    for j, e in enumerate(self.react[i]):
+                        if t >= t0 + 0.65 + 0.12 * j:
+                            k = ease_out_back((t - t0 - 0.65 - 0.12 * j) / 0.3)
+                            ex = 120 if j == 0 else 960
+                            ey = CARD_Y - card.height / 2 - 30 + 10 * math.sin(t * 6 + j)
+                            paste_center(im, scaled(e, k).rotate(12 * math.sin(t * 5 + j), Image.BICUBIC, expand=True),
+                                         x - W / 2 + ex, ey, 1 - kout)
+        if self.t_end + 0.3 <= t < self.t_ceo2 + 0.4:
             te = t - self.t_end - 0.3
-            im.alpha_composite(Image.new("RGBA", (W, H), (0, 0, 0, int(105 * clamp(te / 0.4)))))
+            a = 1 - clamp((t - self.t_ceo2) / 0.4)
+            im.alpha_composite(Image.new("RGBA", (W, H), (0, 0, 0, int(100 * clamp(te / 0.4) * a))))
             for i, c in enumerate(self.end1):
-                paste_center(im, scaled(c, ease_out_back((te - 0.2 - 0.6 * i) / 0.35)), W / 2, 250 + i * 105)
-            k = ease_out_back((te - 2.6) / 0.4) * (1 + 0.04 * math.sin(t * 7))
-            paste_center(im, scaled(self.cta, k), W / 2, 1060)
-            paste_center(im, scaled(self.cta2, ease_out_back((te - 3.0) / 0.4)), W / 2, 1170)
-            paste_center(im, self.note, W / 2, 1270, clamp((te - 3.2) / 0.4))
+                paste_center(im, scaled(c, ease_out_back((te - 0.2 - 0.7 * i) / 0.35)), W / 2, 250 + i * 105, a)
+        if t >= self.t_ceo2 + 0.7:
+            tc = t - self.t_ceo2 - 0.7
+            paste_center(im, scaled(self.cta, ease_out_back(tc / 0.35) * (1 + 0.03 * math.sin(t * 7))), W / 2, 260)
+            paste_center(im, scaled(self.cta2, ease_out_back((tc - 0.25) / 0.35)), W / 2, 372)
+            paste_center(im, self.note, W / 2, 460, clamp((tc - 0.4) / 0.3))
+        for s0, s1, text in self.subs:  # pop-in subtitles
+            if s0 <= t < s1:
+                k = 1 + 0.18 * (1 - ease_out_cubic((t - s0) / 0.12))
+                paste_center(im, scaled(self.sub_img(text), k), W / 2, 1400)
         return im
 
 
 def build():
     print("Drawing the cartoon ...", flush=True)
     scene = draw_scene()
-    tts = mv.TTS("am_adam", "en-us")
+    tts = mv.TTS("am_onyx", "en-us")
     ceo = mv.TTS("bm_lewis", "en-gb")
     sc = Short(scene, tts, ceo)
     return [sc], [0.0], sc.dur, scene
@@ -576,12 +684,12 @@ def main():
     a = ap.parse_args()
     scenes, starts, total, scene = build()
     sc = scenes[0]
-    print(f"Duration {total:.1f}s  (bubble {sc.t_bubble:.1f}, AI {sc.t_ai:.1f}, meanwhile {sc.t_mean:.1f}, "
+    print(f"Duration {total:.1f}s  (AI {sc.t_ai:.1f}, meanwhile {sc.t_mean:.1f}, CEO again {sc.t_ceo2:.1f}, "
           f"facts {[round(f[0], 1) for f in sc.facts]}, end {sc.t_end:.1f})")
     mv.G["scenes"], mv.G["starts"] = scenes, starts
     if a.cover:
-        sc.cap1, sc.sat = [], Image.new("RGBA", (1, 1))  # cover gets its own, bigger title
-        im = sc.render(sc.t_bubble + 0.8)
+        sc.cap1, sc.sat, sc.subs = [], Image.new("RGBA", (1, 1)), []  # cover gets its own, bigger title
+        im = sc.render(0.9)
         paste_center(im, bold("NESTLÉ WHEN", 120, stroke=12), W / 2, 250)
         paste_center(im, bold("AI USES WATER", 120, fill=YELLOW, stroke=12), W / 2, 380)
         p = os.path.join(HERE, "nestle_satire_cover.jpg")
