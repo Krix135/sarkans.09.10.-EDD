@@ -391,6 +391,32 @@ class TTS:
         self.k, self.voice, self.lang = None, voice, lang
         os.makedirs(CACHE_DIR, exist_ok=True)
 
+    def _eleven(self, text, speed):
+        """ElevenLabs voice: self.voice is "eleven:<voice name or voice id>". Needs ELEVENLABS_API_KEY."""
+        import json
+        import urllib.request
+        key = os.environ.get("ELEVENLABS_API_KEY")
+        if not key:
+            sys.exit("ELEVENLABS_API_KEY is not set (add it to the environment's settings, not to the chat)")
+        api = "https://api.elevenlabs.io/v1"
+        voice = self.voice.split(":", 1)[1]
+        if not re.fullmatch(r"[A-Za-z0-9]{20}", voice):  # a name like "George": look up its id
+            req = urllib.request.Request(f"{api}/voices", headers={"xi-api-key": key})
+            voices = json.load(urllib.request.urlopen(req, timeout=60))["voices"]
+            match = [v for v in voices if v["name"].lower().startswith(voice.lower())]
+            if not match:
+                sys.exit(f"No ElevenLabs voice called {voice!r}. Available: {', '.join(v['name'] for v in voices)}")
+            voice = match[0]["voice_id"]
+        body = json.dumps({"text": text, "model_id": "eleven_multilingual_v2",
+                           "voice_settings": {"stability": 0.4, "similarity_boost": 0.8, "style": 0.35,
+                                              "speed": max(0.7, min(1.2, speed))}}).encode()
+        req = urllib.request.Request(f"{api}/text-to-speech/{voice}?output_format=mp3_44100_128", data=body,
+                                     headers={"xi-api-key": key, "Content-Type": "application/json"})
+        mp3 = urllib.request.urlopen(req, timeout=120).read()
+        raw = subprocess.run(["ffmpeg", "-loglevel", "error", "-i", "-", "-f", "f32le", "-ac", "1", "-ar", str(SR), "-"],
+                             input=mp3, capture_output=True, check=True).stdout
+        return np.frombuffer(raw, np.float32).astype(np.float64), SR
+
     def say(self, text, speed=1.04):
         text = speakable(text)
         lang = "" if self.lang == "en-us" else f"|{self.lang}"  # keeps old cache keys valid
@@ -398,6 +424,15 @@ class TTS:
         path = os.path.join(CACHE_DIR, key + ".npy")
         if os.path.exists(path):
             return np.load(path)
+        if self.voice.startswith("eleven:"):
+            samples, sr = self._eleven(text, speed)
+            audio = samples
+            nz = np.nonzero(np.abs(audio) > 0.01)[0]  # trim silence
+            if len(nz):
+                audio = audio[max(0, nz[0] - int(0.03 * SR)): nz[-1] + int(0.08 * SR)]
+            audio = audio / (np.abs(audio).max() + 1e-9) * 0.9
+            np.save(path, audio)
+            return audio
         if self.k is None:
             ensure_models()
             from kokoro_onnx import Kokoro
