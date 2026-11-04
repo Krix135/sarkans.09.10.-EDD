@@ -538,20 +538,37 @@ def make_cover(gp, flags, path, base=None):
 BG_CROP = "855:1520:20:205"  # clean 9:16 area of the screen recording (no YouTube buttons, title or comments)
 
 
-def prepare_bg_video(src, total, boundaries, work):
-    """Crop/scale the clip and loop it so the loop point lands exactly on a question change."""
+def prepare_bg_video(src, total, boundaries, work, crossfade=0.0):
+    """Crop/scale the clip and loop it so the (first) loop point lands exactly on a question change.
+
+    With crossfade > 0 every loop point is a short dissolve, so later loops never jump either."""
     dur = float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", src],
                                capture_output=True, text=True, check=True).stdout)
-    cands = [b for b in boundaries if b <= dur - 0.05]
+    cands = [b for b in boundaries if b <= dur - 0.05 - crossfade / 2]
     seam = min(cands, key=lambda b: dur - b) if cands else dur
-    offset = dur - seam
+    offset = dur - seam - crossfade / 2
     seg, full = os.path.join(work, "bg_seg.mp4"), os.path.join(work, "bg_full.mp4")
     vf = f"crop={BG_CROP},scale={W}:{H}:flags=lanczos,fps={FPS},eq=saturation=1.08"
     subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-ss", f"{offset:.3f}", "-i", src, "-vf", vf, "-an",
                     "-c:v", "libx264", "-crf", "14", "-preset", "veryfast", "-g", "30", seg], check=True)
-    loops = int(math.ceil(total / (dur - offset)))
-    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-stream_loop", str(loops), "-i", seg, "-t", f"{total:.3f}",
-                    "-c:v", "libx264", "-crf", "14", "-preset", "veryfast", "-g", "30", full], check=True)
+    L = dur - offset
+    if crossfade > 0:
+        n = int(math.ceil((total - crossfade) / (L - crossfade))) + 1
+        inputs, chain, last = [], [], "0:v"
+        for k in range(n):
+            inputs += ["-i", seg]
+        for k in range(1, n):
+            out = f"x{k}"
+            chain.append(f"[{last}][{k}:v]xfade=transition=fade:duration={crossfade}:offset={k * (L - crossfade):.3f}[{out}]")
+            last = out
+        subprocess.run(["ffmpeg", "-y", "-loglevel", "error", *inputs, "-filter_complex", ";".join(chain),
+                        "-map", f"[{last}]", "-t", f"{total:.3f}", "-c:v", "libx264", "-crf", "14",
+                        "-preset", "veryfast", "-g", "30", full], check=True)
+    else:
+        loops = int(math.ceil(total / L))
+        subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-stream_loop", str(loops), "-i", seg, "-t",
+                        f"{total:.3f}", "-c:v", "libx264", "-crf", "14", "-preset", "veryfast", "-g", "30", full],
+                       check=True)
     print(f"Background: {dur:.2f}s clip, loop seam at {seam:.2f}s (start offset {offset:.2f}s)")
     return full
 
