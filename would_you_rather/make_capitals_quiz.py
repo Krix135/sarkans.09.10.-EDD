@@ -11,6 +11,7 @@ from the region-flags set (flags/LICENSE).
     python3 make_capitals_quiz.py
     python3 make_capitals_quiz.py --stills 2,8,30
     python3 make_capitals_quiz.py --cover
+    python3 make_capitals_quiz.py --bg-video gameplay.mp4   # use a recorded gameplay clip instead
 """
 
 import argparse
@@ -183,7 +184,11 @@ class Gameplay:
         px, py = mq.iso_xy(x, w.ry + 0.5, z - 1, w.origin)
         return w, px, py, v
 
+    video = False  # True when a recorded gameplay clip is composited underneath by the renderer
+
     def frame(self, tg, shake=(0, 0)):
+        if self.video:
+            return Image.new("RGBA", (W, H), (0, 0, 0, 0))
         w, px, py, v = self.state(tg)
         z = 1.22 + 0.03 * math.sin(tg * 0.5)
         cx, cy = px, py - (CHAR_SCREEN_Y - H / 2) / z
@@ -249,6 +254,8 @@ def sfx_step(seed):
 
 def mix_with_steps(scenes, starts, total, gameplay):
     data = mq.mix(scenes, starts, total, "piano").astype(np.float64) / 32767
+    if gameplay.video:  # recorded parkour clip: no walking character, so no footsteps
+        return (np.clip(data, -1, 1) * 32767).astype(np.int16)
     steps = np.zeros(len(data))
     t = 0.3
     k = 0
@@ -508,8 +515,8 @@ def build(voice):
     return scenes, starts, t, gp, flags
 
 
-def make_cover(gp, flags, path):
-    im = gp.frame(3.0)
+def make_cover(gp, flags, path, base=None):
+    im = base.convert("RGBA") if base is not None else gp.frame(3.0)
     im.alpha_composite(Image.new("RGBA", (W, H), (0, 0, 0, 90)))
     for i, (code, x, y, s, rot) in enumerate((("FR", 230, 960, 290, 10), ("JP", 850, 960, 290, -10),
                                               ("BR", 200, 1250, 270, -8), ("CA", 880, 1250, 270, 8),
@@ -525,20 +532,89 @@ def make_cover(gp, flags, path):
     print(path)
 
 
+# ----------------------------------------------------------------------------
+# recorded gameplay background
+# ----------------------------------------------------------------------------
+BG_CROP = "855:1520:20:205"  # clean 9:16 area of the screen recording (no YouTube buttons, title or comments)
+
+
+def prepare_bg_video(src, total, boundaries, work):
+    """Crop/scale the clip and loop it so the loop point lands exactly on a question change."""
+    dur = float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", src],
+                               capture_output=True, text=True, check=True).stdout)
+    cands = [b for b in boundaries if b <= dur - 0.05]
+    seam = min(cands, key=lambda b: dur - b) if cands else dur
+    offset = dur - seam
+    seg, full = os.path.join(work, "bg_seg.mp4"), os.path.join(work, "bg_full.mp4")
+    vf = f"crop={BG_CROP},scale={W}:{H}:flags=lanczos,fps={FPS},eq=saturation=1.08"
+    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-ss", f"{offset:.3f}", "-i", src, "-vf", vf, "-an",
+                    "-c:v", "libx264", "-crf", "14", "-preset", "veryfast", "-g", "30", seg], check=True)
+    loops = int(math.ceil(total / (dur - offset)))
+    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-stream_loop", str(loops), "-i", seg, "-t", f"{total:.3f}",
+                    "-c:v", "libx264", "-crf", "14", "-preset", "veryfast", "-g", "30", full], check=True)
+    print(f"Background: {dur:.2f}s clip, loop seam at {seam:.2f}s (start offset {offset:.2f}s)")
+    return full
+
+
+def bg_frame(full, t):
+    raw = subprocess.run(["ffmpeg", "-loglevel", "error", "-ss", f"{t:.3f}", "-i", full, "-frames:v", "1",
+                          "-f", "rawvideo", "-pix_fmt", "rgb24", "-"], capture_output=True, check=True).stdout
+    return Image.frombytes("RGB", (W, H), raw[:W * H * 3])
+
+
+BG = {}
+
+
+def render_chunk_video(args):
+    idx, a, b, path = args
+    dec = subprocess.Popen(["ffmpeg", "-loglevel", "error", "-ss", f"{a / FPS:.4f}", "-i", BG["full"],
+                            "-frames:v", str(b - a), "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
+                           stdout=subprocess.PIPE)
+    enc = subprocess.Popen(["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24",
+                            "-s", f"{W}x{H}", "-r", str(FPS), "-i", "-", "-c:v", "libx264", "-preset", "medium",
+                            "-crf", "20", "-pix_fmt", "yuv420p", "-g", "60", path], stdin=subprocess.PIPE)
+    last = None
+    scenes, starts = mv.G["scenes"], mv.G["starts"]
+    for i in range(a, b):
+        raw = dec.stdout.read(W * H * 3)
+        if len(raw) == W * H * 3:
+            last = raw
+        base = Image.frombytes("RGB", (W, H), last).convert("RGBA")
+        t = i / FPS
+        k = max(0, np.searchsorted(starts, t, side="right") - 1)
+        sc = scenes[k]
+        base.alpha_composite(sc.render(min(t - starts[k], sc.dur - 1e-4)))
+        enc.stdin.write(base.convert("RGB").tobytes())
+        if idx == 0 and (i - a) % 150 == 0:
+            print(f"  chunk 0: {i - a}/{b - a} frames", flush=True)
+    enc.stdin.close()
+    enc.wait()
+    dec.wait()
+    return path
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--out", default=os.path.join(HERE, "short_capitals_quiz.mp4"))
     ap.add_argument("--stills", default=None)
     ap.add_argument("--cover", action="store_true")
     ap.add_argument("--voice", default="bm_george")
+    ap.add_argument("--bg-video", default=None, help="recorded gameplay clip to use as the background")
     ap.add_argument("--workers", type=int, default=os.cpu_count() or 2)
     args = ap.parse_args()
     scenes, starts, total, gp, flags = build(args.voice)
+    work = os.path.join(mv.CACHE_DIR, "render_cap")
+    full = None
+    if args.bg_video:
+        os.makedirs(work, exist_ok=True)
+        gp.video = True
+        full = prepare_bg_video(args.bg_video, total, starts[1:], work)
+        BG["full"] = full
     for sc, st in zip(scenes, starts):
         print(f"  {st:6.2f}s  {type(sc).__name__} {getattr(sc, 'idx', '')}")
     print(f"Duration {total:.1f}s; worlds: {gp.segments}")
     if args.cover:
-        make_cover(gp, flags, os.path.join(HERE, "capitals_quiz_cover.jpg"))
+        make_cover(gp, flags, os.path.join(HERE, "capitals_quiz_cover.jpg"), bg_frame(full, 3.0) if full else None)
         return
     mv.G["scenes"], mv.G["starts"] = scenes, starts
     if args.stills:
@@ -546,12 +622,19 @@ def main():
         os.makedirs(d, exist_ok=True)
         for s in args.stills.split(","):
             p = os.path.join(d, f"cap_{float(s):06.2f}.png")
-            mv.frame_at(int(float(s) * FPS)).save(p)
+            fr = mv.frame_at(int(float(s) * FPS))
+            if full:
+                base = bg_frame(full, float(s)).convert("RGBA")
+                k = max(0, np.searchsorted(starts, float(s), side="right") - 1)
+                base.alpha_composite(scenes[k].render(min(float(s) - starts[k], scenes[k].dur - 1e-4)))
+                fr = base.convert("RGB")
+            fr.save(p)
             print(p)
         return
-    work = os.path.join(mv.CACHE_DIR, "render_cap")
-    shutil.rmtree(work, ignore_errors=True)
-    os.makedirs(work)
+    for f in os.listdir(work) if os.path.isdir(work) else []:
+        if f.startswith("part") or f.endswith(".wav") or f.endswith(".txt"):
+            os.remove(os.path.join(work, f))
+    os.makedirs(work, exist_ok=True)
     wav = os.path.join(work, "audio.wav")
     mv.write_wav(wav, mix_with_steps(scenes, starts, total, gp))
     nframes = int(total * FPS)
@@ -559,7 +642,7 @@ def main():
     bounds = [round(nframes * k / n) for k in range(n + 1)]
     jobs = [(k, bounds[k], bounds[k + 1], os.path.join(work, f"part{k}.mp4")) for k in range(n)]
     with mp.get_context("fork").Pool(n) as pool:
-        parts = pool.map(mv.render_chunk, jobs)
+        parts = pool.map(render_chunk_video if full else mv.render_chunk, jobs)
     lst = os.path.join(work, "parts.txt")
     with open(lst, "w") as f:
         f.writelines(f"file '{p}'\n" for p in parts)
