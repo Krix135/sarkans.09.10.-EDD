@@ -327,7 +327,7 @@ class Ending(Base):
         return im
 
 
-def build(video, logo_bg=False, intro=True, voice="bm_george", italian="im_nicola"):
+def build(video, logo_bg=False, intro=True, voice="am_adam", italian="im_nicola"):
     mq.ensure_pixfont()
     tts = mv.TTS(voice, "en-gb" if voice.startswith("b") else "en-us")
     it = mv.TTS(italian, "it")
@@ -383,7 +383,7 @@ def main():
     ap.add_argument("--logo-bg", default=None, metavar="COLOR",
                     help="use the scrolling Quizzies logo background (e.g. darkblue, orange) instead of gameplay")
     ap.add_argument("--intro", action="store_true", help="start with the title intro (default: straight to Q1)")
-    ap.add_argument("--voice", default="bm_george",
+    ap.add_argument("--voice", default="am_adam",
                     help='narrator: a Kokoro voice (bm_george) or an ElevenLabs voice ("eleven:Brian")')
     ap.add_argument("--italian-voice", default="im_nicola",
                     help='voice that shouts the names (im_nicola or e.g. "eleven:Giovanni")')
