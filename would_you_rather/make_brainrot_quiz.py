@@ -47,7 +47,7 @@ QUESTIONS = [  # picture key, name on screen, Italian shout, level, British prom
     ("lirili", "LIRILÌ LARILÀ", "Lirilì Larilà!", "NORMAL", "Guess this one!"),
     ("cappuccino", "CAPPUCCINO ASSASSINO", "Cappuccino Assassino!", "NORMAL", "Do you know him?"),
     ("patapim", "BRR BRR PATAPIM", "Brr brr patapim!", "MEDIUM", "This one's tricky!"),
-    ("trippi", "TRIPPI TROPPI", "Trippi Troppi!", "MEDIUM", "Who could this be?"),
+    ("trippi", "TRIPPI TROPPI TROPPA TRIPPA", "Trippi troppi troppa trippa!", "MEDIUM", "Who could this be?"),
     ("lavaca", "LA VACA SATURNO SATURNITA", "La vaca saturno saturnita!", "MEDIUM", "Last one!"),
 ]
 PURPLE = (150, 70, 255)
@@ -78,6 +78,15 @@ def real_picture(key, size=700):
     out = out.filter(ImageFilter.GaussianBlur(16))
     out.alpha_composite(card, (pad, pad))
     return out
+
+
+def pic_for(key):
+    return real_picture(key) or bp.picture(key)
+
+
+def fit_box(im, box):
+    s = box / max(im.width, im.height)
+    return im.resize((max(1, int(im.width * s)), max(1, int(im.height * s))), Image.LANCZOS)
 
 
 def art(name, size):
@@ -122,7 +131,7 @@ class Intro(Base):
         self.lines = [(bold("GUESS THE", 130), 0.08, 330),
                       (bold("BRAINROT", 200, fill=YELLOW, stroke=16), 0.28, 520),
                       (bold("BY THE PICTURE!", 104, fill=(255, 140, 230), stroke=10), 0.5, 700)]
-        self.pics = [scaled(bp.picture(k), 0.42) for k in ("tralalero", "tungtung", "bombardiro")]
+        self.pics = [fit_box(pic_for(k), 340) for k in ("tralalero", "tungtung", "bombardiro")]
         self.brain = art("brain", 220)
 
     def render(self, t):
@@ -280,7 +289,7 @@ class Ending(Base):
         self.cta = Image.new("RGBA", (ct.width + e.width + 10, max(ct.height, e.height)))
         self.cta.alpha_composite(ct, (0, (self.cta.height - ct.height) // 2))
         self.cta.alpha_composite(e, (ct.width + 10, (self.cta.height - e.height) // 2))
-        self.minis = [scaled(bp.picture(q[0]), 0.12) for q in QUESTIONS]
+        self.minis = [fit_box(pic_for(q[0]), 96) for q in QUESTIONS]
         self.sounds.append((1.5, mq.sfx_pling(), 0.8))
 
     def render(self, t):
@@ -338,9 +347,9 @@ def make_cover(full, path):
     paste_center(base, mq.sunburst(1600, (255, 120, 220), 16), W / 2, 1000, 0.6)
     paste_center(base, bold("GUESS THE", 130, stroke=12), W / 2, 280)
     paste_center(base, bold("BRAINROT", 220, fill=YELLOW, stroke=18, max_w=1000), W / 2, 480)
-    pics = [("tralalero", 230, 900, 0.62, -8), ("tungtung", 850, 900, 0.62, 8), ("bombardiro", 540, 1180, 0.7, 0)]
+    pics = [("tralalero", 260, 930, 480, -8), ("tungtung", 830, 930, 480, 8), ("bombardiro", 540, 1250, 520, 0)]
     for key, x, y, s, rot in pics:
-        paste_center(base, scaled(bp.picture(key), s).rotate(rot, Image.BICUBIC, expand=True), x, y)
+        paste_center(base, fit_box(pic_for(key), s).rotate(rot, Image.BICUBIC, expand=True), x, y)
     paste_center(base, mc_button("99% FAIL", 460, 120, (210, 30, 30), 48).rotate(-6, Image.BICUBIC, expand=True),
                  W / 2, 680)
     paste_center(base, art("skull", 170), 150, 1450)
