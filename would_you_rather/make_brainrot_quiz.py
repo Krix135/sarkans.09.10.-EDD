@@ -118,6 +118,9 @@ def fallback_bg(t):
 
 
 class Base(cq.Base):
+    first = False
+    loop_flash = True
+
     def bg(self, t):
         if self.video:
             return Image.new("RGBA", (W, H), (0, 0, 0, 0))
@@ -214,24 +217,25 @@ class Question(Base):
             shake = (a * math.sin(rv * 90), a * math.cos(rv * 75))
         im = self.bg(t)
         im.alpha_composite(self.tint)
-        hk = ease_out_back(t / 0.3)
+        ta = t + 0.5 if self.first else t  # first question opens fully formed (no empty first frame)
+        hk = ease_out_back(ta / 0.3)
         paste_center(im, scaled(self.head, hk), W / 2, 185)
         paste_center(im, scaled(self.badge, hk), W / 2, 250)
         # picture: spinning rays behind, bouncy pop-in, wobble, big bounce on reveal
         paste_center(im, self.rays.rotate(t * 25, Image.BICUBIC), W / 2 + shake[0], PIC_Y + shake[1], 0.55)
         paste_center(im, self.glow, W / 2, PIC_Y)
-        pk = ease_out_back(t / 0.35, 1.6)
+        pk = ease_out_back(ta / 0.35, 1.6)
         s = (0.3 + 0.7 * pk) * (1 + 0.025 * math.sin(t * 6))
         if rv > 0:
             s *= 1 + 0.12 * math.sin(math.pi * clamp(rv / 0.3))
         pic = scaled(self.pic, s * 0.95).rotate(4 * math.sin(t * 3.2), Image.BICUBIC, expand=True)
         paste_center(im, pic, W / 2 + shake[0], PIC_Y + shake[1])
         if rv < 0:
-            paste_center(im, scaled(self.prompt, ease_out_back((t - 0.15) / 0.3)), W / 2, PROMPT_Y)
+            paste_center(im, scaled(self.prompt, ease_out_back((ta - 0.15) / 0.3)), W / 2, PROMPT_Y)
             cd = max(0.0, t - T_IN)
             n = max(1, 4 - int(cd))
             red = n <= 2
-            k = ease_out_back((t - 0.2) / 0.3)
+            k = ease_out_back((ta - 0.2) / 0.3)
             paste_center(im, scaled(self.frame, k), W / 2, TIMER_Y)
             pop = 1 + 0.35 * (1 - ease_out_cubic((cd % 1) / 0.3))
             paste_center(im, scaled(self.nums[(n, red)], pop * k), W / 2, TIMER_Y + 4)
@@ -263,7 +267,8 @@ class Question(Base):
         if self.level_change and t < 1.0:
             bx = W / 2 + (1 - ease_out_cubic(t / 0.2)) * W - ease_in_cubic((t - 0.8) / 0.2) * W
             paste_center(im, self.banner.rotate(-4, Image.BICUBIC, expand=True), bx, TIMER_Y)
-        self.blocks(im, 1 - clamp(t / T_IN))
+        if not self.first:
+            self.blocks(im, 1 - clamp(t / T_IN))
         self.blocks(im, clamp((t - (self.dur - 0.15)) / 0.15))
         return im
 
@@ -312,22 +317,29 @@ class Ending(Base):
         for i, m in enumerate(self.minis):
             k = ease_out_back((t - 1.0 - 0.05 * i) / 0.3)
             paste_center(im, scaled(m, k), W / 2 + (i - 4.5) * 98, 1390 + 8 * math.sin(t * 5 + i))
-        fl = clamp((t - (self.dur - 0.35)) / 0.35)  # matches the intro's first frame so the Short loops
-        if fl > 0:
-            im.alpha_composite(Image.new("RGBA", (W, H), (255, 255, 255, int(255 * fl))))
+        if self.loop_flash:
+            fl = clamp((t - (self.dur - 0.35)) / 0.35)  # matches the intro's first frame so the Short loops
+            if fl > 0:
+                im.alpha_composite(Image.new("RGBA", (W, H), (255, 255, 255, int(255 * fl))))
+        else:
+            self.cells_init() if not hasattr(self, "cells") else None
+            self.blocks(im, clamp((t - (self.dur - 0.2)) / 0.2))
         return im
 
 
-def build(video, logo_bg=False):
+def build(video, logo_bg=False, intro=True):
     mq.ensure_pixfont()
     tts = mv.TTS("bm_george", "en-gb")
     it = mv.TTS("im_nicola", "it")
-    scenes = [Intro(tts, it)]
+    scenes = [Intro(tts, it)] if intro else []
     prev = None
     for i, q in enumerate(QUESTIONS, 1):
         scenes.append(Question(tts, it, i, q, prev))
         prev = q[3]
     scenes.append(Ending(tts, it))
+    if not intro:
+        scenes[0].first = True          # no block reveal on the very first frame
+        scenes[-1].loop_flash = False   # end on a block wipe that loops into question 1
     tint = tint_overlay(logo_bg)
     starts, t = [], 0.0
     for sc in scenes:
@@ -370,13 +382,14 @@ def main():
     ap.add_argument("--bg-video", default=DEFAULT_BG if os.path.exists(DEFAULT_BG) else None)
     ap.add_argument("--logo-bg", default=None, metavar="COLOR",
                     help="use the scrolling Quizzies logo background (e.g. darkblue, orange) instead of gameplay")
+    ap.add_argument("--intro", action="store_true", help="start with the title intro (default: straight to Q1)")
     ap.add_argument("--stills", default=None)
     ap.add_argument("--cover", action="store_true")
     ap.add_argument("--workers", type=int, default=os.cpu_count() or 2)
     args = ap.parse_args()
     if args.logo_bg:
         args.bg_video = None
-    scenes, starts, total = build(bool(args.bg_video or args.logo_bg), bool(args.logo_bg))
+    scenes, starts, total = build(bool(args.bg_video or args.logo_bg), bool(args.logo_bg), args.intro)
     for sc, st in zip(scenes, starts):
         print(f"  {st:6.2f}s  {type(sc).__name__} {getattr(sc, 'idx', '')}")
     print(f"Duration {total:.1f}s")
