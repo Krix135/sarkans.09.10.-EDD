@@ -56,7 +56,7 @@ FACTS = [  # tag, main line, small line, narration, camera target (x, y, zoom)
      (830, 1540, 1.28)),
 ]
 
-K_HOOK, K_AI, K_FACTORY, K_WIDE = (800, 1700, 1.45), (1700, 1080, 1.3), (620, 1600, 1.1), (1080, 1520, 0.72)
+K_HOOK, K_AI, K_FACTORY, K_WIDE = (800, 1700, 1.45), (1700, 1080, 1.3), (560, 1300, 1.1), (860, 1520, 0.72)
 
 
 # ----------------------------------------------------------------------------
@@ -110,6 +110,37 @@ class P:
 
     def done(self):
         return self.im.resize((self.im.width // SS, self.im.height // SS), Image.LANCZOS)
+
+
+def nest_emblem(size, color=(60, 60, 66)):
+    """Nest-with-birds emblem in the style of the brand's logo (drawn from scratch, flat line art)."""
+    ss = 4
+    n = size * ss
+    im = Image.new("RGBA", (n, n))
+    d = ImageDraw.Draw(im)
+    c = tuple(color) + (255,)
+    clear = (0, 0, 0, 0)
+    u = n / 100.0
+    # nest: shallow bowl with horizontal woven strokes
+    d.chord((8 * u, 44 * u, 92 * u, 94 * u), 0, 180, fill=c)
+    for k, y in enumerate((74, 81, 88)):
+        d.line((14 * u + k * 5 * u, y * u, 86 * u - k * 5 * u, y * u), fill=clear, width=max(1, int(2.2 * u)))
+    # chicks in the nest, beaks wide open towards the mother
+    for cx0, cy0 in ((62, 60), (77, 62)):
+        d.ellipse(((cx0 - 7) * u, (cy0 - 7) * u, (cx0 + 7) * u, (cy0 + 7) * u), fill=c)
+        d.polygon([((cx0 - 4) * u, (cy0 - 4) * u), ((cx0 - 13) * u, (cy0 - 16) * u), ((cx0 - 1) * u, (cy0 - 7) * u)],
+                  fill=c)
+        d.polygon([((cx0 + 1) * u, (cy0 - 6) * u), ((cx0 - 4) * u, (cy0 - 21) * u), ((cx0 + 5) * u, (cy0 - 5) * u)],
+                  fill=c)
+    # mother bird on the left rim, leaning over the chicks
+    d.ellipse((8 * u, 38 * u, 46 * u, 66 * u), fill=c)                         # body
+    d.polygon([(10 * u, 56 * u), (-2 * u, 70 * u), (18 * u, 62 * u)], fill=c)   # tail
+    d.polygon([(34 * u, 40 * u), (44 * u, 26 * u), (52 * u, 24 * u), (46 * u, 46 * u)], fill=c)  # neck
+    d.ellipse((42 * u, 14 * u, 60 * u, 32 * u), fill=c)                         # head
+    d.polygon([(57 * u, 24 * u), (70 * u, 34 * u), (56 * u, 30 * u)], fill=c)   # beak, pointing down to the chicks
+    d.ellipse((50 * u, 19 * u, 54 * u, 23 * u), fill=clear)                     # eye
+    d.arc((14 * u, 42 * u, 40 * u, 62 * u), 200, 330, fill=clear, width=max(1, int(2 * u)))  # wing line
+    return im.resize((size, size), Image.LANCZOS)
 
 
 def river_center(y):
@@ -232,10 +263,10 @@ def draw_scene():
     for gx in range(110, 860, 90):
         for gy in (1080, 1200):
             p.rect((gx, gy, gx + 54, gy + 60), (70, 70, 80), INK, 4)
-    p.rect((180, 880, 760, 1030), (255, 255, 255), INK, 7, r=14)
-    p.text((470, 958), "NESTLÉ", font("Black", 120), INK)
+    p.rect((110, 865, 840, 1045), (255, 255, 255), INK, 7, r=14)
+    p.text((548, 958), "NESTLÉ", font("Black", 120), INK)
     p.rect((620, 1290, 860, 1560), (90, 140, 200), INK, 6, r=24)  # water tank
-    p.text((740, 1425), "WATER", font("Black", 44), (255, 255, 255))
+    p.text((740, 1478), "WATER", font("Black", 44), (255, 255, 255))
     p.rect((360, 1380, 560, 1560), (40, 40, 48), INK, 6)  # loading door
     p.poly([(380, 1560), (560, 1560), (520, 1830), (300, 1830)], (80, 80, 88), INK, 5)  # conveyor
     for k in range(6):
@@ -289,6 +320,11 @@ def draw_scene():
               width=5 * SS)
     p.line([(cx + 8, 1797), (cx + 76, 1797)], INK, 3)
     base.alpha_composite(p.done())
+    for size, col, (x, y) in ((150, (60, 60, 66), (212, 955)),     # logo on the factory sign
+                              (112, (255, 255, 255), (740, 1372)),  # on the water tank
+                              (58, (255, 255, 255), (682, 1946))):  # on the CEO's suit
+        e = nest_emblem(size, col)
+        base.alpha_composite(e, (int(x - size / 2), int(y - size / 2)))
     return base
 
 
@@ -689,6 +725,7 @@ def main():
     mv.G["scenes"], mv.G["starts"] = scenes, starts
     if a.cover:
         sc.cap1, sc.sat, sc.subs = [], Image.new("RGBA", (1, 1)), []  # cover gets its own, bigger title
+        sc.keys, sc.punches = [(0.0, (640, 1305, 1.0)), (99.0, (640, 1305, 1.0))], []  # show the logo sign
         im = sc.render(0.9)
         paste_center(im, bold("NESTLÉ WHEN", 120, stroke=12), W / 2, 250)
         paste_center(im, bold("AI USES WATER", 120, fill=YELLOW, stroke=12), W / 2, 380)
