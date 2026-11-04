@@ -93,9 +93,15 @@ def art(name, size):
     return Image.open(os.path.join(bp.ART, name + ".png")).convert("RGBA").resize((size, size), Image.LANCZOS)
 
 
-def tint_overlay():
-    """Purple-ish vignette over the gameplay so the quiz pops."""
+def tint_overlay(logo_bg=False):
+    """Vignette over the background so the quiz pops (purple for gameplay, soft navy for the logo background)."""
     a = np.zeros((H, W, 4), np.uint8)
+    if logo_bg:
+        ys, xs = np.mgrid[0:H, 0:W]
+        d = np.sqrt(((xs - W / 2) / (W * 0.75)) ** 2 + ((ys - H * 0.45) / (H * 0.65)) ** 2)
+        a[..., 0], a[..., 1], a[..., 2] = 4, 8, 28
+        a[..., 3] = np.clip(120 * (d - 0.5), 0, 120).astype(np.uint8)
+        return Image.fromarray(a, "RGBA")
     a[..., 0], a[..., 1], a[..., 2] = 40, 10, 70
     ys, xs = np.mgrid[0:H, 0:W]
     d = np.sqrt(((xs - W / 2) / (W * 0.75)) ** 2 + ((ys - H * 0.45) / (H * 0.65)) ** 2)
@@ -312,7 +318,7 @@ class Ending(Base):
         return im
 
 
-def build(video):
+def build(video, logo_bg=False):
     mq.ensure_pixfont()
     tts = mv.TTS("bm_george", "en-gb")
     it = mv.TTS("im_nicola", "it")
@@ -322,7 +328,7 @@ def build(video):
         scenes.append(Question(tts, it, i, q, prev))
         prev = q[3]
     scenes.append(Ending(tts, it))
-    tint = tint_overlay()
+    tint = tint_overlay(logo_bg)
     starts, t = [], 0.0
     for sc in scenes:
         sc.t0, sc.video, sc.tint = t, video, tint
@@ -341,9 +347,9 @@ def compose(scenes, starts, t, full):
     return base.convert("RGB")
 
 
-def make_cover(full, path):
+def make_cover(full, path, logo_bg=False):
     base = cq.bg_frame(full, 5.0).convert("RGBA") if full else fallback_bg(0)
-    base.alpha_composite(tint_overlay())
+    base.alpha_composite(tint_overlay(logo_bg))
     paste_center(base, mq.sunburst(1600, (255, 120, 220), 16), W / 2, 1000, 0.6)
     paste_center(base, bold("GUESS THE", 130, stroke=12), W / 2, 280)
     paste_center(base, bold("BRAINROT", 220, fill=YELLOW, stroke=18, max_w=1000), W / 2, 480)
@@ -362,19 +368,31 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--out", default=os.path.join(HERE, "short_brainrot_quiz.mp4"))
     ap.add_argument("--bg-video", default=DEFAULT_BG if os.path.exists(DEFAULT_BG) else None)
+    ap.add_argument("--logo-bg", default=None, metavar="COLOR",
+                    help="use the scrolling Quizzies logo background (e.g. darkblue, orange) instead of gameplay")
     ap.add_argument("--stills", default=None)
     ap.add_argument("--cover", action="store_true")
     ap.add_argument("--workers", type=int, default=os.cpu_count() or 2)
     args = ap.parse_args()
-    scenes, starts, total = build(bool(args.bg_video))
+    if args.logo_bg:
+        args.bg_video = None
+    scenes, starts, total = build(bool(args.bg_video or args.logo_bg), bool(args.logo_bg))
     for sc, st in zip(scenes, starts):
         print(f"  {st:6.2f}s  {type(sc).__name__} {getattr(sc, 'idx', '')}")
     print(f"Duration {total:.1f}s")
     work = os.path.join(mv.CACHE_DIR, "render_brainrot")
     os.makedirs(work, exist_ok=True)
     full = cq.prepare_bg_video(args.bg_video, total, starts[1:], work, crossfade=0.6) if args.bg_video else None
+    if args.logo_bg:
+        loop = os.path.join(HERE, f"quizzies_background_{args.logo_bg}.mp4")
+        if not os.path.exists(loop):
+            subprocess.run([sys.executable, "-I", os.path.join(HERE, "make_logo_background.py"), "--color",
+                            args.logo_bg, "--video", "12"], check=True)
+        full = os.path.join(work, "bg_full.mp4")  # the 12 s loop is seamless, so plain looping never jumps
+        subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-stream_loop", "-1", "-i", loop, "-t", f"{total:.3f}",
+                        "-c:v", "libx264", "-crf", "14", "-preset", "veryfast", "-g", "30", full], check=True)
     if args.cover:
-        make_cover(full, os.path.join(HERE, "brainrot_quiz_cover.jpg"))
+        make_cover(full, os.path.join(HERE, "brainrot_quiz_cover.jpg"), bool(args.logo_bg))
         return
     mv.G["scenes"], mv.G["starts"] = scenes, starts
     if args.stills:

@@ -23,6 +23,7 @@ LOGO_SIZE = 190
 
 COLORS = {  # top, bottom, logo tint
     "orange": ((238, 104, 62), (250, 128, 74), (160, 52, 24)),
+    "darkblue": ((10, 22, 62), (22, 48, 118), (92, 132, 230)),
     "blue": ((40, 90, 200), (70, 140, 240), (16, 44, 120)),
     "purple": ((110, 50, 200), (160, 90, 240), (60, 20, 120)),
     "green": ((40, 160, 90), (80, 200, 120), (16, 90, 44)),
@@ -48,10 +49,15 @@ def gradient(top, bot):
     return Image.fromarray(np.repeat(arr, W, axis=1).astype(np.uint8), "RGB").convert("RGBA")
 
 
+_cache = {}
+
+
 def background(color, shift=(0.0, 0.0)):
     top, bot, tint = COLORS[color]
-    im = gradient(top, bot)
-    stamp = logo_stamp(tint)
+    if color not in _cache:
+        _cache[color] = (gradient(top, bot), logo_stamp(tint, alpha=0.22 if color == "darkblue" else 0.30))
+    base, stamp = _cache[color]
+    im = base.copy()
     sx, sy = shift[0] % STEP_X, shift[1] % (2 * STEP_Y)   # pattern repeats every STEP_X / 2*STEP_Y
     pat = Image.new("RGBA", (W, H))
     for r in range(-3, H // STEP_Y + 3):
@@ -60,12 +66,13 @@ def background(color, shift=(0.0, 0.0)):
             x, y = int(c * STEP_X + off + sx), int(r * STEP_Y + sy)
             _paste_clipped(pat, stamp, x - LOGO_SIZE // 2, y - LOGO_SIZE // 2)
     im.alpha_composite(pat)
-    # soft vignette for depth
-    yy, xx = np.mgrid[0:H, 0:W]
-    d = np.sqrt(((xx - W / 2) / (W * 0.8)) ** 2 + ((yy - H / 2) / (H * 0.8)) ** 2)
-    v = np.zeros((H, W, 4), np.uint8)
-    v[..., 3] = (np.clip(d - 0.45, 0, 1) * 110).astype(np.uint8)
-    im.alpha_composite(Image.fromarray(v, "RGBA"))
+    if "vignette" not in _cache:  # soft vignette for depth
+        yy, xx = np.mgrid[0:H, 0:W]
+        d = np.sqrt(((xx - W / 2) / (W * 0.8)) ** 2 + ((yy - H / 2) / (H * 0.8)) ** 2)
+        v = np.zeros((H, W, 4), np.uint8)
+        v[..., 3] = (np.clip(d - 0.45, 0, 1) * 110).astype(np.uint8)
+        _cache["vignette"] = Image.fromarray(v, "RGBA")
+    im.alpha_composite(_cache["vignette"])
     return im.convert("RGB")
 
 
