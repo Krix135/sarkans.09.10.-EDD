@@ -73,7 +73,9 @@ def frame_axes(c):
 
 def zoom_for(world, c, near, W, H, fx=0.38, fy=0.25):
     east, up, view = frame_axes(c)
-    pts = np.concatenate([world.P[world.starts[i]:world.starts[i] + world.lens[i]] for i in near])
+    big = max(world.lens[i] for i in near)
+    main = [i for i in near if world.lens[i] >= 0.12 * big]  # frame the main land, not tiny far islands
+    pts = np.concatenate([world.P[world.starts[i]:world.starts[i] + world.lens[i]] for i in main])
     sx, sy = np.abs(pts @ east).max(), np.abs(pts @ up).max()
     return float(np.clip(min(fx * W / max(sx, 1e-3), fy * H / max(sy, 1e-3)), 650, 12000))
 
@@ -124,7 +126,7 @@ class GlobeRenderer:
         ImageDraw.Draw(g).ellipse((56, 56, 456, 456), fill=ATMOSPHERE + (255,))
         self.atmo = g.filter(ImageFilter.GaussianBlur(26))
 
-    def render(self, c, R, center, hilite=None, hilite_a=0.0):
+    def render(self, c, R, center, hilite=None, hilite_a=0.0, flag=None, flag_a=0.0):
         W, H, ss = self.W, self.H, self.ss
         w = self.world
         east, up, view = frame_axes(c)
@@ -160,17 +162,35 @@ class GlobeRenderer:
             d.polygon(pts, fill=LAND + (255,))
             d.line(pts + [pts[0]], fill=BORDER + (255,), width=lw)
         if hl_set and hilite_a > 0:
+            polys = []
+            for i in hl_set:
+                if onscreen[i]:
+                    s, n = w.starts[i], w.lens[i]
+                    polys.append(list(zip(X[s:s + n].tolist(), Y[s:s + n].tolist())))
             glow = Image.new("L", (SW // 4, SH // 4))
             gd = ImageDraw.Draw(glow)
             hl_layer = Image.new("RGBA", (SW, SH))
             hd = ImageDraw.Draw(hl_layer)
-            for i in hl_set:
-                if not onscreen[i]:
-                    continue
-                s, n = w.starts[i], w.lens[i]
-                pts = list(zip(X[s:s + n].tolist(), Y[s:s + n].tolist()))
+            mask = Image.new("L", (SW, SH)) if flag is not None and flag_a > 0 else None
+            md = ImageDraw.Draw(mask) if mask is not None else None
+            for pts in polys:
                 gd.polygon([(x / 4, y / 4) for x, y in pts], fill=255)
                 hd.polygon(pts, fill=HILITE + (255,))
+                if md is not None:
+                    md.polygon(pts, fill=255)
+            if mask is not None and polys:  # the flag fills the country's shape
+                xs_ = [x for pts in polys for x, _ in pts]
+                ys_ = [y for pts in polys for _, y in pts]
+                x0, x1, y0, y1 = min(xs_), max(xs_), min(ys_), max(ys_)
+                bw, bh = max(2.0, x1 - x0), max(2.0, y1 - y0)
+                fw, fh = max(2, int(bw * 1.04)), max(2, int(bh * 1.04))  # stretch the flag over the country
+                fl = flag.resize((fw, fh), Image.BILINEAR).convert("RGBA")
+                fx, fy = int((x0 + x1) / 2 - fw / 2), int((y0 + y1) / 2 - fh / 2)
+                fl_layer = Image.new("RGBA", (SW, SH))
+                fl_layer.paste(fl, (fx, fy))
+                fl_layer.putalpha(mask.point(lambda v: int(v * flag_a)))
+                hl_layer.alpha_composite(fl_layer)
+            for pts in polys:
                 hd.line(pts + [pts[0]], fill=HILITE_EDGE + (255,), width=max(2, int(3 * ss)))
             glow = glow.filter(ImageFilter.MaxFilter(5)).filter(ImageFilter.GaussianBlur(5)).resize((SW, SH),
                                                                                                     Image.BILINEAR)
