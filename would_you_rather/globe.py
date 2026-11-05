@@ -19,6 +19,7 @@ HILITE = (255, 64, 140)
 HILITE_EDGE = (130, 0, 60)
 HILITE_GLOW = (255, 120, 200)
 ATMOSPHERE = (170, 120, 255)
+SHALLOW = (70, 120, 205)
 SPACE_TOP, SPACE_BOT = (12, 5, 30), (44, 16, 86)
 
 
@@ -126,7 +127,8 @@ class GlobeRenderer:
         ImageDraw.Draw(g).ellipse((56, 56, 456, 456), fill=ATMOSPHERE + (255,))
         self.atmo = g.filter(ImageFilter.GaussianBlur(26))
 
-    def render(self, c, R, center, hilite=None, hilite_a=0.0, flag=None, flag_a=0.0):
+    def render(self, c, R, center, hilite=None, hilite_a=0.0, flag=None, flag_a=0.0, lift=0.0, halo=True):
+        """lift: pixels the highlighted country rises off the map (3D pop). Sets self.last_hl_center."""
         W, H, ss = self.W, self.H, self.ss
         w = self.world
         east, up, view = frame_axes(c)
@@ -156,7 +158,22 @@ class GlobeRenderer:
         onscreen = vis & (maxx > 0) & (minx < SW) & (maxy > 0) & (miny < SH) & ((maxx - minx) + (maxy - miny) > 1.5)
         lw = max(1, int(1.6 * ss))
         hl_set = set(hilite.tolist()) if hilite is not None else set()
-        for i in np.nonzero(onscreen)[0]:
+        ids = np.nonzero(onscreen)[0]
+        if halo:  # light "shallow water" glow along every coastline
+            q = 4
+            hm = Image.new("L", (SW // q, SH // q))
+            hmd = ImageDraw.Draw(hm)
+            for i in ids:
+                s, n = w.starts[i], w.lens[i]
+                hmd.polygon(list(zip((X[s:s + n] / q).tolist(), (Y[s:s + n] / q).tolist())), fill=255)
+            hm = hm.filter(ImageFilter.MaxFilter(5)).filter(ImageFilter.GaussianBlur(6))
+            disk = Image.new("L", hm.size)
+            ImageDraw.Draw(disk).ellipse(((scx - sR) / q, (scy - sR) / q, (scx + sR) / q, (scy + sR) / q), fill=255)
+            hm = Image.fromarray(np.minimum(np.asarray(hm), np.asarray(disk)))
+            hl_img = Image.new("RGBA", (SW, SH), SHALLOW + (0,))
+            hl_img.putalpha(hm.resize((SW, SH), Image.BILINEAR).point(lambda v: int(v * 0.75)))
+            layer.alpha_composite(hl_img)
+        for i in ids:
             s, n = w.starts[i], w.lens[i]
             pts = list(zip(X[s:s + n].tolist(), Y[s:s + n].tolist()))
             d.polygon(pts, fill=LAND + (255,))
@@ -192,14 +209,24 @@ class GlobeRenderer:
                 hl_layer.alpha_composite(fl_layer)
             for pts in polys:
                 hd.line(pts + [pts[0]], fill=HILITE_EDGE + (255,), width=max(2, int(3 * ss)))
+            if polys:
+                xs_ = [x for pts in polys for x, _ in pts]
+                ys_ = [y for pts in polys for _, y in pts]
+                self.last_hl_center = ((min(xs_) + max(xs_)) / 2 / ss, (min(ys_) + max(ys_)) / 2 / ss - lift)
+            dy = int(lift * ss)
+            if dy > 0:  # drop shadow where the country was, then draw it lifted
+                sm = glow.filter(ImageFilter.GaussianBlur(3)).resize((SW, SH), Image.BILINEAR)
+                shadow = Image.new("RGBA", (SW, SH), (10, 5, 30, 0))
+                shadow.putalpha(sm.point(lambda v: int(v * 0.55 * hilite_a)))
+                layer.alpha_composite(shadow)
             glow = glow.filter(ImageFilter.MaxFilter(5)).filter(ImageFilter.GaussianBlur(5)).resize((SW, SH),
                                                                                                     Image.BILINEAR)
             gl = Image.new("RGBA", (SW, SH), HILITE_GLOW + (0,))
             gl.putalpha(glow.point(lambda v: int(v * 0.85 * hilite_a)))
-            layer.alpha_composite(gl)
+            layer.alpha_composite(gl, (0, 0), (0, dy))
             if hilite_a < 1:
                 hl_layer.putalpha(hl_layer.getchannel("A").point(lambda v: int(v * hilite_a)))
-            layer.alpha_composite(hl_layer)
+            layer.alpha_composite(hl_layer, (0, 0), (0, dy))
         layer = layer.resize((W, H), Image.LANCZOS) if ss != 1 else layer
         im.alpha_composite(layer)
         k = min(1.0, max(0.0, (1300 - R) / 500))  # sphere shading fades out as we zoom in
