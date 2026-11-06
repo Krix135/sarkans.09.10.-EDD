@@ -175,7 +175,8 @@ class Movie(mv.Scene):
         im = Image.new("RGBA", (W, H))
         rv = t - self.reveal
         out = ease_in_cubic((t - (self.dur - 0.22)) / 0.22)
-        ta = t + 0.6 if self.idx == 1 else t  # the very first frame already shows the screen and the hook
+        first = self.idx == 1 and not self.ui.get("intro")
+        ta = t + 0.6 if first else t  # without the intro, the first frame already shows the screen and the hook
         d = ImageDraw.Draw(im)
         # header: count, tag, title
         paste_center(im, self.count, 70 + self.count.width / 2 - 24, 150)
@@ -206,7 +207,7 @@ class Movie(mv.Scene):
                 d.rounded_rectangle((x0, TIMER_Y - bh / 2, x0 + (x1 - x0) * frac, TIMER_Y + bh / 2), 13,
                                     fill=colr + (255,))
             paste_center(im, self.ui["clock"], x1 + 62, TIMER_Y)
-        if self.idx == 1 and ta < 2.6:  # hook
+        if first and ta < 2.6:  # hook (only when there is no intro)
             a = 1 - clamp((ta - 2.2) / 0.4)
             paste_center(im, self.ui["hook"], W / 2, 375, a)
         if self.banner is not None and 0.05 < t < 1.15:
@@ -229,6 +230,72 @@ class Movie(mv.Scene):
             f = 1 - clamp(rv / 0.18)
             if f > 0:
                 im.alpha_composite(Image.new("RGBA", (W, H), (255, 255, 255, int(120 * f))))
+        return im
+
+
+class Intro(mv.Scene):
+    """1.8 s hook: flash + slam, a rapid-fire preview of every clue, an open loop, then a whip into movie 1."""
+
+    def __init__(self, ui):
+        super().__init__()
+        self.ui = ui
+        self.dur = 1.8
+        self.l1 = rtext("ONLY 1%", 230, fill=PINK, stroke=16)
+        self.l2 = rtext("GET 10/10", 140, fill=CYAN, stroke=12)
+        self.can = join(rtext("CAN YOU?", 120, stroke=11), emoji("👀", 120))
+        self.tease = join(rtext("the last one is IMPOSSIBLE", 62, fill=GOLD, stroke=7), emoji("💀", 66))
+        self.q = rtext("?", 330, stroke=18)
+        self.rays = mq.sunburst(1700, PINK, 18)
+        self.screen = scaled(ui["screen"], 0.82)
+        self.sets = []
+        for title, codes, _, _ in MOVIES:  # every clue set, for the rapid-fire preview
+            size = 190 if len(codes) == 2 else 165
+            self.sets.append([art(c, size) for c in codes])
+        self.m0, self.m1 = 0.3, 1.05
+        self.step = (self.m1 - self.m0) / len(self.sets)
+        self.sounds += [(0.0, mq.sfx_boom(), 1.0), (0.0, mv.sfx_whoosh(0.4), 0.6), (0.22, mv.sfx_pop(), 1.0),
+                        (self.m0, mv.sfx_riser(self.m1 - self.m0 + 0.05), 0.8), (self.m1, mq.sfx_boom(), 0.6),
+                        (self.m1, mv.sfx_ding(), 0.5), (1.55, mv.sfx_whoosh(0.35), 0.9)]
+        for k in range(len(self.sets)):
+            self.sounds.append((self.m0 + k * self.step, mv.sfx_click(), 0.55))
+
+    def render(self, t):
+        im = Image.new("RGBA", (W, H))
+        im.alpha_composite(Image.new("RGBA", (W, H), (10, 5, 30, 120)))
+        whip = ease_in_cubic((t - 1.55) / 0.25)  # zoom-through into movie 1
+        paste_center(im, self.rays.rotate(t * 60, Image.BICUBIC), W / 2, 1050, 0.35 * (1 - whip))
+        sh = 26 * (1 - clamp(t / 0.3)) + 18 * (1 - clamp((t - self.m1) / 0.25)) * (t >= self.m1)
+        dx, dy = int(sh * math.sin(t * 95)), int(sh * math.cos(t * 80))
+        layer = Image.new("RGBA", (W, H))
+        s1 = 1 + 0.14 * (1 - ease_out_cubic(t / 0.16))  # readable from the very first frame
+        paste_center(layer, scaled(self.l1, s1).rotate(-4, Image.BICUBIC, expand=True), W / 2, 420)
+        if t >= 0.22:
+            s2 = 1 + 1.3 * (1 - ease_out_cubic((t - 0.22) / 0.16))
+            paste_center(layer, scaled(self.l2, s2).rotate(3, Image.BICUBIC, expand=True), W / 2, 600)
+        if t >= 0.15:
+            paste_center(layer, scaled(self.screen, ease_out_back((t - 0.15) / 0.25)), W / 2, 1050)
+        if self.m0 <= t < self.m1:  # rapid-fire clue preview on the screen
+            k = min(len(self.sets) - 1, int((t - self.m0) / self.step))
+            em = self.sets[k]
+            gap = 24
+            total = sum(e.width for e in em) + gap * (len(em) - 1)
+            x = W / 2 - total / 2
+            for e in em:
+                paste_center(layer, e, x + e.width / 2, 1085)
+                x += e.width + gap
+        elif t >= self.m1:
+            paste_center(layer, scaled(self.q, ease_out_back((t - self.m1) / 0.2)), W / 2, 1085)
+            paste_center(layer, scaled(self.can, 1 + 0.35 * (1 - ease_out_cubic((t - self.m1) / 0.15))), W / 2, 215)
+            paste_center(layer, scaled(self.tease, ease_out_back((t - self.m1 - 0.1) / 0.25)), W / 2, 1500)
+        if whip > 0:
+            layer = scaled(layer, 1 + 0.8 * whip)
+            layer.putalpha(layer.getchannel("A").point(lambda v: int(v * (1 - whip))))
+            paste_center(im, layer, W / 2 + dx, H / 2 + dy)
+        else:
+            im.alpha_composite(layer, (max(0, dx), max(0, dy)), (max(0, -dx), max(0, -dy)))
+        f = 1 - clamp(t / 0.2)  # light flash on frame one (the ending fades into this)
+        if f > 0:
+            im.alpha_composite(Image.new("RGBA", (W, H), (255, 255, 255, int(55 * f))))
         return im
 
 
@@ -297,23 +364,25 @@ def mix_audio(scenes, starts, total, kind="phonk"):
     if kind == "none":
         mix = 0.9 * fx
     else:
+        off = scenes[0].dur if isinstance(scenes[0], Intro) else 0.0  # the beat drops after the intro
         mus = np.zeros(n)
-        m = music.make_phonk(total)
-        mus[:len(m)] = m
+        m = music.make_phonk(total - off)
+        i0 = int(off * mv.SR)
+        mus[i0:i0 + len(m)] = m
         mix = np.tanh(1.1 * (0.55 * mus + 0.6 * fx)) / np.tanh(1.1)
     return (np.clip(np.stack([mix, mix], 1), -1, 1) * 32767).astype(np.int16)
 
 
-def build():
+def build(intro=True):
     ui = {"screen": cinema_screen(), "title": join(rtext("GUESS THE MOVIE", 82, stroke=8), emoji("🎬", 84)),
           "hook": join(rtext("only 1% get 10/10", 64, fill=PINK, stroke=7), emoji("😳", 68)),
-          "clock": emoji("⏰", 64)}
+          "clock": emoji("⏰", 64), "intro": intro}
     rng = random.Random(9)
-    scenes, prev = [], None
+    scenes, prev = ([Intro(ui)] if intro else []), None
     for i, q in enumerate(MOVIES, 1):
         scenes.append(Movie(i, q, ui, prev, rng))
         prev = q[3]
-    ui["first"] = scenes[0]
+    ui["first"] = scenes[0]  # the ending fades into this, so the Short loops
     scenes.append(Ending(ui))
     starts, t = [], 0.0
     for sc in scenes:
@@ -345,10 +414,11 @@ def main():
     ap.add_argument("--cover", action="store_true")
     ap.add_argument("--no-bg", action="store_true")
     ap.add_argument("--music", default="phonk", choices=["phonk", "chiptune", "none"])
+    ap.add_argument("--no-intro", action="store_true", help="start straight on movie 1")
     ap.add_argument("--workers", type=int, default=os.cpu_count() or 2)
     a = ap.parse_args()
     mm.TILE_Y = TILE_Y
-    scenes, starts, total, ui = build()
+    scenes, starts, total, ui = build(not a.no_intro)
     print(f"Duration {total:.1f}s")
     work = os.path.join(mv.CACHE_DIR, "render_movie")
     os.makedirs(work, exist_ok=True)
