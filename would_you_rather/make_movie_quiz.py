@@ -282,6 +282,28 @@ class Ending(mv.Scene):
         return im
 
 
+def mix_audio(scenes, starts, total, kind="phonk"):
+    """SFX + background music: 'phonk' (original, music.py), 'chiptune', or 'none' (add a trending sound in-app)."""
+    if kind == "chiptune":
+        return mq.mix(scenes, starts, total, "chiptune")
+    import music
+    n = int(total * mv.SR) + mv.SR
+    fx = np.zeros(n)
+    for sc, st in zip(scenes, starts):
+        for at, arr, g in sc.sounds:
+            i = int((st + at) * mv.SR)
+            fx[i:i + len(arr)] += arr[: n - i] * g
+    fx /= np.abs(fx).max() + 1e-9
+    if kind == "none":
+        mix = 0.9 * fx
+    else:
+        mus = np.zeros(n)
+        m = music.make_phonk(total)
+        mus[:len(m)] = m
+        mix = np.tanh(1.1 * (0.55 * mus + 0.6 * fx)) / np.tanh(1.1)
+    return (np.clip(np.stack([mix, mix], 1), -1, 1) * 32767).astype(np.int16)
+
+
 def build():
     ui = {"screen": cinema_screen(), "title": join(rtext("GUESS THE MOVIE", 82, stroke=8), emoji("🎬", 84)),
           "hook": join(rtext("only 1% get 10/10", 64, fill=PINK, stroke=7), emoji("😳", 68)),
@@ -322,6 +344,7 @@ def main():
     ap.add_argument("--stills", default=None)
     ap.add_argument("--cover", action="store_true")
     ap.add_argument("--no-bg", action="store_true")
+    ap.add_argument("--music", default="phonk", choices=["phonk", "chiptune", "none"])
     ap.add_argument("--workers", type=int, default=os.cpu_count() or 2)
     a = ap.parse_args()
     mm.TILE_Y = TILE_Y
@@ -346,7 +369,7 @@ def main():
         if f.startswith("part") or f.endswith(".wav") or f.endswith(".txt") or f == "joined.mp4":
             os.remove(os.path.join(work, f))
     wav = os.path.join(work, "audio.wav")
-    mv.write_wav(wav, mq.mix(scenes, starts, total, "chiptune"))
+    mv.write_wav(wav, mix_audio(scenes, starts, total, a.music))
     nframes = int(total * FPS)
     n = max(1, a.workers)
     bounds = [round(nframes * k / n) for k in range(n + 1)]
