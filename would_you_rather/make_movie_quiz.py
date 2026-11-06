@@ -349,6 +349,34 @@ class Ending(mv.Scene):
         return im
 
 
+PROMPTS = ["Guess the movie!", "Easy one.", "Next!", "Medium level!", "What's this one?", "Think fast!",
+           "Hard level!", "Ooh, tricky.", "Last hard one!", "Insane level!", "Bonus! Only one percent get this."]
+SAID = {"FINDING NEMO": "Finding Nemo!", "THE LION KING": "The Lion King!", "FROZEN": "Frozen!",
+        "TOY STORY": "Toy Story!", "UP": "Up!", "HARRY POTTER": "Harry Potter!", "JURASSIC PARK": "Jurassic Park!",
+        "TITANIC": "Titanic!", "THE HUNGER GAMES": "The Hunger Games!", "BACK TO THE FUTURE": "Back to the Future!",
+        "SHREK": "Shrek!"}
+
+
+def add_narration(scenes, voice="af_heart"):
+    """Narrator: the hook in the intro, a short line per movie, the answer at each reveal, and the call to action."""
+    tts = mv.TTS(voice, "en-gb" if voice.startswith("b") else "en-us")
+    movies = [sc for sc in scenes if isinstance(sc, Movie)]
+    for sc in scenes:
+        if isinstance(sc, Intro):
+            sc.voices.append((0.05, tts.say("Only one percent get ten out of ten!", speed=1.15)))
+        elif isinstance(sc, Ending):
+            sc.voices.append((0.1, tts.say("How many did you get? Comment your score!", speed=1.12)))
+    for i, sc in enumerate(movies):
+        v = tts.say(PROMPTS[i], speed=1.15)
+        sc.voices.append((0.2, v))
+        if 0.2 + len(v) / mv.SR > sc.reveal - 1.3:
+            print(f"warning: prompt {i + 1} runs into the ticks", flush=True)
+        a = tts.say(SAID[sc.tiles.name], speed=1.1)
+        sc.voices.append((sc.reveal + 0.05, a))
+        if sc.reveal + 0.05 + len(a) / mv.SR > sc.dur:
+            print(f"warning: answer {i + 1} is longer than its scene", flush=True)
+
+
 def mix_audio(scenes, starts, total, kind="phonk"):
     """SFX + background music: 'phonk' (original, music.py), 'chiptune', or 'none' (add a trending sound in-app)."""
     if kind == "chiptune":
@@ -361,15 +389,22 @@ def mix_audio(scenes, starts, total, kind="phonk"):
             i = int((st + at) * mv.SR)
             fx[i:i + len(arr)] += arr[: n - i] * g
     fx /= np.abs(fx).max() + 1e-9
+    voice = np.zeros(n)
+    for sc, st in zip(scenes, starts):
+        for at, arr in sc.voices:
+            i = int((st + at) * mv.SR)
+            voice[i:i + len(arr)] += arr[: n - i]
+    env = mv.lowpass(np.abs(voice), 8)
+    duck = mv.lowpass(1 - 0.55 * np.clip(env / 0.05, 0, 1), 3)  # music and SFX dip under the narrator
     if kind == "none":
-        mix = 0.9 * fx
+        mix = 0.9 * fx * (0.6 + 0.4 * duck) + voice
     else:
         off = scenes[0].dur if isinstance(scenes[0], Intro) else 0.0  # the beat drops after the intro
         mus = np.zeros(n)
         m = music.make_phonk(total - off)
         i0 = int(off * mv.SR)
         mus[i0:i0 + len(m)] = m
-        mix = np.tanh(1.1 * (0.55 * mus + 0.6 * fx)) / np.tanh(1.1)
+        mix = np.tanh(1.1 * (0.55 * mus * duck + 0.6 * fx * (0.6 + 0.4 * duck) + voice)) / np.tanh(1.1)
     return (np.clip(np.stack([mix, mix], 1), -1, 1) * 32767).astype(np.int16)
 
 
@@ -415,10 +450,25 @@ def main():
     ap.add_argument("--no-bg", action="store_true")
     ap.add_argument("--music", default="phonk", choices=["phonk", "chiptune", "none"])
     ap.add_argument("--no-intro", action="store_true", help="start straight on movie 1")
+    ap.add_argument("--voice", default="af_heart", help="narrator voice (e.g. af_heart, am_adam) or 'none'")
+    ap.add_argument("--audio-only", action="store_true", help="rebuild only the sound and swap it into --out")
     ap.add_argument("--workers", type=int, default=os.cpu_count() or 2)
     a = ap.parse_args()
     mm.TILE_Y = TILE_Y
     scenes, starts, total, ui = build(not a.no_intro)
+    if a.voice != "none":
+        add_narration(scenes, a.voice)
+    if a.audio_only:  # same picture, new sound
+        work = os.path.join(mv.CACHE_DIR, "render_movie")
+        os.makedirs(work, exist_ok=True)
+        src, wav = os.path.join(work, "video_src.mp4"), os.path.join(work, "audio_only.wav")
+        subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", a.out, "-map", "0:v", "-c", "copy", src], check=True)
+        mv.write_wav(wav, mix_audio(scenes, starts, total, a.music))
+        subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", src, "-i", wav, "-map", "0:v", "-map", "1:a",
+                        "-c:v", "copy", "-af", "loudnorm=I=-14:TP=-1.5:LRA=11", "-ar", str(mv.SR), "-c:a", "aac",
+                        "-b:a", "192k", "-movflags", "+faststart", "-shortest", a.out], check=True)
+        print(f"Done (audio only): {a.out}")
+        return
     print(f"Duration {total:.1f}s")
     work = os.path.join(mv.CACHE_DIR, "render_movie")
     os.makedirs(work, exist_ok=True)
