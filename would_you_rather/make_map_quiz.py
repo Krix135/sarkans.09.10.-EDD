@@ -44,11 +44,13 @@ INK = (34, 18, 52)
 CYAN, PINK, VIOLET, GOLD, RED = (90, 225, 255), (255, 90, 170), (175, 120, 255), (255, 205, 60), (255, 70, 70)
 FLY, DRAIN0, HINT = 1.0, 1.0, 1.75
 TILE_Y, FACT_Y = 1292, 1405
-START_VIEW = (G.unit(-25, 30), 620.0)
+START_LON, START_LAT = -25, 30
+START_VIEW = (G.unit(START_LON, START_LAT), 620.0)
+EPISODE = 1
 TIERS = {"EASY": (CYAN, "😎"), "MEDIUM": (VIOLET, "🤔"), "HARD": (PINK, "😳"), "INSANE": (RED, "💀"),
          "BONUS": (GOLD, "😱")}
 
-COUNTRIES = [  # map code, flag, name, fun fact, fact emoji, tier (none of these are in the reference video)
+COUNTRIES = [  # episode 1: map code, flag, name, fun fact, fact emoji, tier (none are in the reference video)
     ("ITA", "IT", "ITALY", "more UNESCO sites than any other country", "🏛", "EASY"),
     ("GBR", "GB", "UNITED KINGDOM", "nowhere is more than 113 km from the sea", "🌊", "EASY"),
     ("MEX", "MX", "MEXICO", "parts of its capital sink 50 cm a year", "🏙", "EASY"),
@@ -61,6 +63,32 @@ COUNTRIES = [  # map code, flag, name, fun fact, fact emoji, tier (none of these
     ("KAZ", "KZ", "KAZAKHSTAN", "the biggest landlocked country on Earth", "🗺", "INSANE"),
     ("LSO", "LS", "LESOTHO", "it's completely surrounded by South Africa", "🤯", "BONUS"),
 ]
+
+COUNTRIES_2 = [  # episode 2: none of these are in the reference video or in episode 1
+    ("FRA", "FR", "FRANCE", "the most visited country on Earth", "🗼", "EASY"),
+    ("ESP", "ES", "SPAIN", "home to the world's oldest restaurant", "🍽", "EASY"),
+    ("CHN", "CN", "CHINA", "the whole country uses just one time zone", "🕐", "EASY"),
+    ("GRC", "GR", "GREECE", "it has about 6,000 islands", "🏝", "MEDIUM"),
+    ("VNM", "VN", "VIETNAM", "the world's 2nd-biggest coffee grower", "☕", "MEDIUM"),
+    ("PER", "PE", "PERU", "the potato was first farmed here", "🥔", "MEDIUM"),
+    ("UKR", "UA", "UKRAINE", "the biggest country fully inside Europe", "🌻", "HARD"),
+    ("ISL", "IS", "ICELAND", "about 11% of it is covered by glaciers", "🧊", "HARD"),
+    ("SAU", "SA", "SAUDI ARABIA", "it has no permanent rivers at all", "🏜", "HARD"),
+    ("PNG", "PG", "PAPUA NEW GUINEA", "over 800 languages are spoken here", "🗣", "INSANE"),
+    ("BTN", "BT", "BHUTAN", "it measures Gross National Happiness", "😊", "BONUS"),
+]
+
+EPISODES = {  # countries, start view (lon, lat), cover (country, view lon/lat, zoom factor), file suffix
+    1: (COUNTRIES, (-25, 30), ("MDG", (32, -14), None), ""),
+    2: (COUNTRIES_2, (75, 22), ("VNM", (103, 13), 0.62), "_2"),
+}
+
+
+def set_episode(ep):
+    global COUNTRIES, START_LON, START_LAT, START_VIEW, EPISODE
+    EPISODE = ep
+    COUNTRIES, (START_LON, START_LAT) = EPISODES[ep][0], EPISODES[ep][1]
+    START_VIEW = (G.unit(START_LON, START_LAT), 620.0)
 
 _f = {}
 
@@ -254,6 +282,8 @@ class Question(mv.Scene):
             a = 1 - clamp((t - 2.2) / 0.4)
             paste_center(im, self.ui["hook1"], W / 2, 380, a)
             paste_center(im, self.ui["hook2"], W / 2, 460, a)
+            if self.ui.get("part") is not None:
+                paste_center(im, self.ui["part"], W / 2, 545, a)
         if self.banner is not None and 0.12 < t < 1.25:
             tb = t - 0.12
             s = 1 + 1.0 * (1 - ease_out_cubic(tb / 0.18))
@@ -285,7 +315,7 @@ class Ending(mv.Scene):
         self.globe, self.ui = globe, ui
         self.dur = 4.6
         self.spin = 7.0  # degrees per second while the score list is up
-        self.home = (G.unit(-25 - self.spin * (self.dur - 1.3), 30), 620.0)
+        self.home = (G.unit(START_LON - self.spin * (self.dur - 1.3), START_LAT), 620.0)
         self.cam = Camera(prev_view, self.home, 1.3, self.dur)
         logo = Image.open(os.path.join(HERE, "profile_picture.png")).convert("RGBA").resize((120, 120), Image.LANCZOS)
         logo.putalpha(mv.circle(120, (255, 255, 255, 255)).getchannel("A"))
@@ -312,7 +342,7 @@ class Ending(mv.Scene):
         if t < 1.3:
             c, R, blur = self.cam.at(t)
         else:
-            c, R, blur = G.unit(-25 - self.spin * (self.dur - t), 30), 620.0, 0.0
+            c, R, blur = G.unit(START_LON - self.spin * (self.dur - t), START_LAT), 620.0, 0.0
         im = zoom_blur(self.globe.render(c, R, CENTER), blur)
         out = clamp((t - (self.dur - 0.45)) / 0.4)  # hand over to the first frame of the video
         dim = clamp((t - 0.5) / 0.4) * (1 - out)
@@ -335,6 +365,8 @@ class Ending(mv.Scene):
             d.rounded_rectangle((160, 211, 1000, 233), 11, fill=(255, 255, 255, int(255 * out)))
             paste_center(im, self.ui["hook1"], W / 2, 380, out)
             paste_center(im, self.ui["hook2"], W / 2, 460, out)
+            if self.ui.get("part") is not None:
+                paste_center(im, self.ui["part"], W / 2, 545, out)
         return im
 
 
@@ -350,7 +382,11 @@ def build():
     globe = G.GlobeRenderer(W, H)
     ui = {"shade": shade_overlay(), "shade_a": [shade_overlay(i / 10) for i in range(11)],
           "hook1": rtext("name this country", 88, stroke=8),
-          "hook2": join(rtext("90% will fail", 56, fill=PINK, stroke=6), emoji("😳", 60))}
+          "hook2": join(rtext("90% will fail", 56, fill=PINK, stroke=6), emoji("😳", 60)), "part": None}
+    if EPISODE > 1:
+        p = rounded_card(250, 64, 32, CYAN + (255,), outline=INK + (255,), width=4)
+        ImageDraw.Draw(p).text((125, 33), f"PART {EPISODE}", font=rfont(40), fill=INK, anchor="mm")
+        ui["part"] = p
     scenes, view, prev_tier = [], START_VIEW, None
     for i, q in enumerate(COUNTRIES, 1):
         sc = Question(i, q, view, globe, ui, prev_tier)
@@ -377,14 +413,21 @@ def mix_fx(scenes, starts, total):
 
 
 def make_cover(globe, path):
-    c, near, _ = globe.world.country("MDG")
-    im = globe.render(G.unit(32, -14), 1250, (540, 1150), near, 1.0, lift=20)
+    code, (lon, lat), zf = EPISODES[EPISODE][2]
+    c, near, _ = globe.world.country(code)
+    R = 1250 if zf is None else G.zoom_for(globe.world, c, near, W, H, 0.36, 0.22) * zf
+    im = globe.render(G.unit(lon, lat), R, (540, 1150), near, 1.0, lift=20)
     im.alpha_composite(shade_overlay())
     paste_center(im, rtext("name this", 140, stroke=12), W / 2, 260)
     paste_center(im, rtext("country", 170, fill=CYAN, stroke=14), W / 2, 430)
     paste_center(im, join(rtext("90% will fail", 80, fill=PINK, stroke=8), emoji("😳", 84)), W / 2, 590)
+    if EPISODE > 1:
+        p = rounded_card(330, 90, 45, CYAN + (255,), outline=INK + (255,), width=5)
+        ImageDraw.Draw(p).text((165, 47), f"PART {EPISODE}", font=rfont(58), fill=INK, anchor="mm")
+        paste_center(im, p.rotate(-6, Image.BICUBIC, expand=True), W / 2, 705)
     paste_center(im, rtext("?", 300, stroke=18), 820, 1110)
-    tiles = Tiles("MADAGASCAR", True)
+    name = next(q[2] for q in COUNTRIES if q[0] == code)
+    tiles = Tiles(name, True)
     tiles.draw(im, 1.0, -1.0)
     im.convert("RGB").save(path, quality=92)
     print(path)
@@ -392,22 +435,26 @@ def make_cover(globe, path):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--out", default=os.path.join(HERE, "short_map_quiz.mp4"))
+    ap.add_argument("--episode", type=int, default=1, choices=sorted(EPISODES))
+    ap.add_argument("--out", default=None)
     ap.add_argument("--stills", default=None)
     ap.add_argument("--cover", action="store_true")
     ap.add_argument("--workers", type=int, default=os.cpu_count() or 2)
     a = ap.parse_args()
+    set_episode(a.episode)
+    suffix = EPISODES[a.episode][3]
+    a.out = a.out or os.path.join(HERE, f"short_map_quiz{suffix}.mp4")
     scenes, starts, total, globe, ui = build()
     print(f"Duration {total:.1f}s")
     if a.cover:
-        make_cover(globe, os.path.join(HERE, "map_quiz_cover.jpg"))
+        make_cover(globe, os.path.join(HERE, f"map_quiz{suffix}_cover.jpg"))
         return
     mv.G["scenes"], mv.G["starts"] = scenes, starts
     if a.stills:
         d = os.path.join(mv.CACHE_DIR, "stills")
         os.makedirs(d, exist_ok=True)
         for s in a.stills.split(","):
-            p = os.path.join(d, f"map_{float(s):06.2f}.png")
+            p = os.path.join(d, f"map{suffix}_{float(s):06.2f}.png")
             mv.frame_at(int(float(s) * FPS)).save(p)
             print(p)
         return
