@@ -6,7 +6,7 @@ title slams), 10 beats per
 country (whip-spin with zoom blur + RGB split, big 3-2-1 slams on the beats,
 reveal with shake / flash / zoom punch / speed lines / sticker), a streak
 counter, glitch transitions and a red heartbeat vignette on the hard levels,
-a narrator with "like this video" call-outs after countries 3 and 6, and an
+a narrator with a "like this video" call-out after country 3, and an
 ending that loops into the first frame.
 Borders: Natural Earth 1:50m (public domain). Flags: public domain.
 
@@ -48,7 +48,7 @@ NUM_Y = 405
 FLY_BEATS = 3                    # beats spent spinning from one country to the next
 TIERS = dict(mm.TIERS, IMPOSSIBLE=((200, 40, 255), "☠"))
 START = (G.unit(-40, 28), 620.0)
-CTA_AFTER = (3, 6)               # "like this video" call-outs after these countries (end of MEDIUM and HARD)
+CTA_AFTER = (3,)                 # "like this video" call-out after these countries (end of MEDIUM)
 CTA_LINE = "Like this video if you got everything so far!"
 CTA_AT = 2 * B                   # after the reveal, once the answer has been said
 CTA_BEATS = 5                    # extra beats the scene holds for it
