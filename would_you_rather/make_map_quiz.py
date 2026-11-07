@@ -28,6 +28,7 @@ sys.path.insert(0, HERE)
 import numpy as np  # noqa: E402
 from PIL import Image, ImageDraw, ImageFont  # noqa: E402
 
+import brand  # noqa: E402
 import globe as G  # noqa: E402
 import make_minecraft_quiz as mq  # noqa: E402
 import make_video as mv  # noqa: E402
@@ -317,9 +318,9 @@ class Ending(mv.Scene):
         self.spin = 7.0  # degrees per second while the score list is up
         self.home = (G.unit(START_LON - self.spin * (self.dur - 1.3), START_LAT), 620.0)
         self.cam = Camera(prev_view, self.home, 1.3, self.dur)
-        logo = Image.open(os.path.join(HERE, "profile_picture.png")).convert("RGBA").resize((120, 120), Image.LANCZOS)
+        logo = Image.open(brand.round_logo()).convert("RGBA").resize((120, 120), Image.LANCZOS)
         logo.putalpha(mv.circle(120, (255, 255, 255, 255)).getchannel("A"))
-        self.brand = join(logo, rtext("QUIZZIES", 60, stroke=6), gap=18)
+        self.brand = join(logo, rtext(brand.NAME, 60, stroke=6), gap=18)
         self.title = rtext("HOW MANY?", 124, fill=CYAN, stroke=11)
         tiers = [("0-3", "Tourist", "📸"), ("4-5", "Backpacker", "🎒"), ("6-7", "Explorer", "🧭"),
                  ("8-9", "Map nerd", "🤓"), ("10", "Human globe", "🌍")]

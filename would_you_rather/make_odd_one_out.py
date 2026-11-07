@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-""""FIND THE ODD ONE OUT" emoji puzzle Short (1080x1920) on the Quizzies logo background.
+""""FIND THE ODD ONE OUT" emoji puzzle Short (1080x1920) on the channel logo background.
 
 8 levels, grids grow from 4x5 to 8x8 and the difference gets subtler each time.
 Emoji art: Noto Emoji 3D by Google (Apache 2.0), cached in odd_art/.

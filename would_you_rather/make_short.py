@@ -20,6 +20,7 @@ import sys
 
 from PIL import Image, ImageDraw
 
+import brand
 import make_video as mv
 from make_video import (ALARM, BLUE_BOT, BLUE_TOP, RED_BOT, RED_TOP, SR, YELLOW, Bokeh, Scene, circle, clamp,
                         dark_bg, ease_in_cubic, ease_out_back, ease_out_cubic, emoji, font, paste_center,
@@ -221,7 +222,7 @@ class ShortOutro(Scene):
     def __init__(self, tts, total):
         super().__init__()
         v = tts.say("How many did you match with the majority? Comment your score, "
-                    "and subscribe to Quizzies for more!", speed=1.1)
+                    f"and subscribe to {brand.SPOKEN} for more!", speed=1.1)
         self.voices.append((0.25, v))
         self.dur = 0.25 + len(v) / SR + 0.9
         self.sounds += [(0.0, sfx_whoosh(0.5), 0.8), (0.2, sfx_fanfare(), 0.8), (0.9, sfx_pop(), 0.8)]
@@ -234,14 +235,14 @@ class ShortOutro(Scene):
         self.cta = rounded_card(ct.width + 200, 130, 65, YELLOW + (255,))
         paste_center(self.cta, ct, 50 + ct.width / 2 + 10, 66)
         paste_center(self.cta, emoji("👇", 70), self.cta.width - 75, 65)
-        pp = os.path.join(HERE, "profile_picture.png")
+        pp = brand.round_logo()
         logo = Image.open(pp).convert("RGBA").resize((340, 340), Image.LANCZOS) if os.path.exists(pp) else \
             circle(340, YELLOW + (255,))
         logo.putalpha(circle(340, (255, 255, 255, 255)).getchannel("A"))
         ring = circle(364, (255, 255, 255, 255))
         ring.alpha_composite(logo, (12, 12))
         self.logo = ring
-        self.sub = text_img("SUBSCRIBE TO QUIZZIES", font("Black", 58))
+        self.sub = text_img(f"SUBSCRIBE TO {brand.NAME}", font("Black", 58))
 
     def render(self, t):
         im = self.bg.copy()

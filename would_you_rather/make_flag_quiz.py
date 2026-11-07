@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-""""GUESS THE COUNTRY BY THE FLAG" quiz Short (1080x1920) on the Quizzies logo background.
+""""GUESS THE COUNTRY BY THE FLAG" quiz Short (1080x1920) on the channel logo background.
 
 10 waving flags from easy to hard, a countdown, then the answer (with a trap
 or fun fact for the tricky ones). Flags: public-domain images (flags/LICENSE).

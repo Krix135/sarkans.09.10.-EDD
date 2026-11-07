@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-""""GUESS THE MOVIE BY EMOJIS" quiz Short (1080x1920) on the Quizzies logo background.
+""""GUESS THE MOVIE BY EMOJIS" quiz Short (1080x1920) on the channel logo background.
 
 Emoji clues pop up one by one on a cinema screen with curtains, a timer drains,
 Wordle-style letter tiles hint the title, then the tiles flip to the answer
@@ -27,6 +27,7 @@ sys.path.insert(0, HERE)
 import numpy as np  # noqa: E402
 from PIL import Image, ImageDraw, ImageFilter  # noqa: E402
 
+import brand  # noqa: E402
 import make_capitals_quiz as cq  # noqa: E402
 import make_map_quiz as mm  # noqa: E402
 import make_minecraft_quiz as mq  # noqa: E402
@@ -304,9 +305,9 @@ class Ending(mv.Scene):
         super().__init__()
         self.ui = ui
         self.dur = 4.6
-        logo = Image.open(os.path.join(HERE, "profile_picture.png")).convert("RGBA").resize((120, 120), Image.LANCZOS)
+        logo = Image.open(brand.round_logo()).convert("RGBA").resize((120, 120), Image.LANCZOS)
         logo.putalpha(mv.circle(120, (255, 255, 255, 255)).getchannel("A"))
-        self.brand = join(logo, rtext("QUIZZIES", 60, stroke=6), gap=18)
+        self.brand = join(logo, rtext(brand.NAME, 60, stroke=6), gap=18)
         self.title = rtext("HOW MANY?", 124, fill=CYAN, stroke=11)
         tiers = [("0-3", "Never watches movies", "😴"), ("4-6", "Casual viewer", "🍿"),
                  ("7-9", "Movie buff", "🎬"), ("10", "Film genius", "🏆")]

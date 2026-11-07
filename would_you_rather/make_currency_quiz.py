@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-""""GUESS THE CURRENCY!" quiz Short (1080x1920) on the Quizzies logo background.
+""""GUESS THE CURRENCY!" quiz Short (1080x1920) on the channel logo background.
 
 A spinning gold coin shows a currency symbol; pick A/B/C/D (with look-alike
 traps), then see which country uses it. 10 coins fill a collection bar.

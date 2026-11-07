@@ -381,7 +381,7 @@ def main():
     ap.add_argument("--out", default=os.path.join(HERE, "short_brainrot_quiz.mp4"))
     ap.add_argument("--bg-video", default=DEFAULT_BG if os.path.exists(DEFAULT_BG) else None)
     ap.add_argument("--logo-bg", default=None, metavar="COLOR",
-                    help="use the scrolling Quizzies logo background (e.g. darkblue, orange) instead of gameplay")
+                    help="use the scrolling channel logo background (e.g. darkblue, orange) instead of gameplay")
     ap.add_argument("--intro", action="store_true", help="start with the title intro (default: straight to Q1)")
     ap.add_argument("--voice", default="am_adam",
                     help='narrator: a Kokoro voice (bm_george) or an ElevenLabs voice ("eleven:Brian")')

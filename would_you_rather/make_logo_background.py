@@ -11,13 +11,17 @@ Outputs quizzies_background_<color>.png (1080x1920) and, with --video, quizzies_
 import argparse
 import os
 import subprocess
+import sys
 
 import numpy as np
 from PIL import Image, ImageEnhance
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 W, H, FPS = 1080, 1920, 30
-LOGO = os.path.join(HERE, "profile_picture.png")
+sys.path.insert(0, HERE)
+import brand  # noqa: E402
+
+LOGO = brand.round_logo()
 STEP_X, STEP_Y = 270, 300      # pattern spacing; the scrolling loop moves one full step so it repeats
 LOGO_SIZE = 190
 

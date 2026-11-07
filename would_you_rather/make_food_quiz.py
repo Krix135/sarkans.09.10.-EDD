@@ -30,6 +30,7 @@ sys.path.insert(0, HERE)
 
 from PIL import Image, ImageDraw, ImageFilter  # noqa: E402
 
+import brand  # noqa: E402
 import make_video as mv  # noqa: E402
 from make_video import (SR, YELLOW, clamp, circle, ease_in_cubic, ease_out_back, ease_out_cubic, emoji,  # noqa: E402
                         font, paste_center, radial_glow, rounded_card, scaled, sfx_ding, sfx_fanfare, sfx_pop,
@@ -403,7 +404,7 @@ class FoodEnding(mv.Scene):
         self.cta = pill("COMMENT YOUR SCORE BELOW!", 44, YELLOW, icon="👇")
         self.sub = outlined("SUBSCRIBE FOR MORE QUIZZES!", 56, stroke=6, max_w=960)
         self.sounds.append((1.6, sfx_pop(), 0.8))
-        pp = os.path.join(HERE, "profile_picture.png")
+        pp = brand.round_logo()
         self.logo = None
         if os.path.exists(pp):
             logo = Image.open(pp).convert("RGBA").resize((150, 150), Image.LANCZOS)

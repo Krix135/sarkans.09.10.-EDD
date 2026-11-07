@@ -30,6 +30,7 @@ sys.path.insert(0, HERE)
 import numpy as np  # noqa: E402
 from PIL import Image, ImageDraw  # noqa: E402
 
+import brand  # noqa: E402
 import globe as G  # noqa: E402
 import make_map_quiz as mm  # noqa: E402
 import make_minecraft_quiz as mq  # noqa: E402
@@ -434,9 +435,9 @@ class Ending(mv.Scene):
         self.globe, self.ui, self.intro = globe, ui, intro
         self.dur = 10 * B
         self.cam = mm.Camera(prev_view, START, 2 * B, self.dur)
-        logo = Image.open(os.path.join(HERE, "profile_picture.png")).convert("RGBA").resize((120, 120), Image.LANCZOS)
+        logo = Image.open(brand.round_logo()).convert("RGBA").resize((120, 120), Image.LANCZOS)
         logo.putalpha(mv.circle(120, (255, 255, 255, 255)).getchannel("A"))
-        self.brand = join(logo, rtext("QUIZZIES", 60, stroke=6), gap=18)
+        self.brand = join(logo, rtext(brand.NAME, 60, stroke=6), gap=18)
         self.title = rtext("HOW MANY?", 124, fill=CYAN, stroke=11)
         tiers = [("0-3", "Tourist", "📸"), ("4-5", "Backpacker", "🎒"), ("6-7", "Explorer", "🧭"),
                  ("8-9", "Map nerd", "🤓"), ("10", "Human globe", "🌍")]
