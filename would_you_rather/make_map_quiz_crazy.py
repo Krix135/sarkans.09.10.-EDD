@@ -446,9 +446,28 @@ class Ending(mv.Scene):
         return im
 
 
-def build(voice="af_heart"):
+class VoicePack:
+    """Pre-recorded narrator lines (e.g. ElevenLabs): DIR/lines.txt lists the text, DIR/00.wav... the audio."""
+
+    def __init__(self, folder):
+        import wave
+        with open(os.path.join(folder, "lines.txt")) as fh:
+            texts = [ln.strip() for ln in fh if ln.strip()]
+        self.clips = {}
+        for k, text in enumerate(texts):
+            with wave.open(os.path.join(folder, f"{k:02d}.wav")) as w:
+                assert w.getframerate() == SR, "voice pack clips must be 48 kHz"
+                self.clips[text] = np.frombuffer(w.readframes(w.getnframes()), np.int16).astype(np.float64) / 32767
+
+    def say(self, text, speed=None):
+        if text not in self.clips:
+            raise KeyError(f"voice pack has no recording of {text!r}")
+        return self.clips[text]
+
+
+def build(voice="af_heart", voice_pack=None):
     globe = G.GlobeRenderer(W, H)
-    tts = mv.TTS(voice, "en-us") if voice != "none" else None
+    tts = VoicePack(voice_pack) if voice_pack else (mv.TTS(voice, "en-us") if voice != "none" else None)
     ui = {"shade": mm.shade_overlay(), "vig": [red_vignette(i / 10) for i in range(11)]}
     intro = Intro(globe, ui, tts)
     scenes, view, prev = [intro], (intro.view(intro.dur)[0], 620.0), "MEDIUM"
@@ -492,10 +511,25 @@ def main():
     ap.add_argument("--cover", action="store_true")
     ap.add_argument("--voice", default="af_heart")
     ap.add_argument("--music", default="phonk", choices=["phonk", "none"])
+    ap.add_argument("--voice-pack", default=None, help="folder of recorded narrator lines (lines.txt + 00.wav...)")
+    ap.add_argument("--audio-only", action="store_true", help="rebuild only the sound and swap it into --out")
     ap.add_argument("--workers", type=int, default=os.cpu_count() or 2)
     a = ap.parse_args()
-    scenes, starts, total, globe = build(a.voice if not (a.stills or a.cover) else "none")
+    quiet = a.stills or a.cover
+    scenes, starts, total, globe = build(a.voice if not quiet else "none", None if quiet else a.voice_pack)
     print(f"Duration {total:.1f}s ({total / B:.0f} beats)")
+    if a.audio_only:  # same picture, new sound
+        import make_movie_quiz as mmq
+        work = os.path.join(mv.CACHE_DIR, "render_map3")
+        os.makedirs(work, exist_ok=True)
+        src, wav = os.path.join(work, "video_src.mp4"), os.path.join(work, "audio_only.wav")
+        subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", a.out, "-map", "0:v", "-c", "copy", src], check=True)
+        mv.write_wav(wav, mmq.mix_audio(scenes, starts, total, a.music))
+        subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", src, "-i", wav, "-map", "0:v", "-map", "1:a",
+                        "-c:v", "copy", "-af", "loudnorm=I=-14:TP=-1.5:LRA=11", "-ar", str(SR), "-c:a", "aac",
+                        "-b:a", "192k", "-movflags", "+faststart", "-shortest", a.out], check=True)
+        print(f"Done (audio only): {a.out}")
+        return
     if a.cover:
         make_cover(globe, os.path.join(HERE, "map_quiz_3_cover.jpg"))
         return
