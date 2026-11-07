@@ -418,7 +418,7 @@ def make_cover(full, scenes, path):
     base.alpha_composite(bq.tint_overlay())
     paste_center(base, mq.sunburst(1700, PINK, 18), W / 2, 1060, 0.5)
     paste_center(base, rtext("GUESS THE", 130, stroke=12), W / 2, 240)
-    paste_center(base, join(rtext("CAR LOGO", 170, fill=CYAN, stroke=14), emoji("🚗", 150)), W / 2, 410)
+    paste_center(base, join(rtext("CAR LOGO", 146, fill=CYAN, stroke=13), emoji("🚗", 124)), W / 2, 410)
     paste_center(base, join(rtext("only 1% get 10/10", 74, fill=PINK, stroke=8), emoji("😳", 78)), W / 2, 580)
     cars = [sc for sc in scenes if isinstance(sc, Car)]
     for c, (x, y, s, r) in zip((cars[6], cars[9], cars[7]), ((280, 930, 0.62, -8), (800, 930, 0.62, 8),
