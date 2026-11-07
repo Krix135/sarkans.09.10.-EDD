@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-""""name this country PART 3": a harder, heavily edited spinning-globe quiz Short (1080x1920).
+""""name this country": a harder, heavily edited spinning-globe quiz Short (1080x1920).
 
 Everything is cut to a 130 BPM phonk beat: 4-beat hook intro, 10 beats per
 country (whip-spin with zoom blur + RGB split, big 3-2-1 slams on the beats,
@@ -152,23 +152,21 @@ def beat_pulse(T):
 # ----------------------------------------------------------------------------
 
 class Intro(mv.Scene):
-    """4 beats: PART 3 / HARDEST / ONE YET / NAME THEM ALL, over a fast-spinning globe."""
+    """4 beats: HARDEST / MAP QUIZ / 99% FAIL / NAME THEM ALL, over a fast-spinning globe."""
 
     def __init__(self, globe, ui, tts):
         super().__init__()
         self.globe, self.ui = globe, ui
         self.dur = 4 * B
-        self.part = rounded_card(300, 84, 42, CYAN + (255,), outline=INK + (255,), width=5)
-        ImageDraw.Draw(self.part).text((150, 44), "PART 3", font=rfont(54), fill=INK, anchor="mm")
         self.l1 = rtext("HARDEST", 180, fill=PINK, stroke=14)
-        self.l2 = rtext("ONE YET", 150, stroke=13)
+        self.l2 = rtext("MAP QUIZ", 150, stroke=13)
         self.l3 = join(rtext("99% FAIL", 120, fill=GOLD, stroke=11), emoji("💀", 120))
         self.l4 = join(rtext("name them all", 92, fill=CYAN, stroke=9), emoji("👀", 96))
         self.sounds += [(0.0, mq.sfx_boom(), 1.0), (0.0, mv.sfx_whoosh(0.4), 0.6), (B, mq.sfx_boom(), 0.6),
                         (2 * B, mq.sfx_boom(), 0.7), (3 * B, mv.sfx_riser(B), 0.7),
                         (4 * B - 0.3, mv.sfx_whoosh(0.4), 0.9)]
         if tts:
-            self.voices.append((0.05, tts.say("Part three! The hardest one yet!", speed=1.18)))
+            self.voices.append((0.05, tts.say("The hardest map quiz ever!", speed=1.18)))
 
     def view(self, t):
         lon = -110 + 70 * clamp(t / self.dur) ** 0.7  # fast spin that settles on the start view
@@ -184,7 +182,6 @@ class Intro(mv.Scene):
         b = int(t / B)
         k = (t % B) / B
         slam = 1 + 0.1 * (1 - ease_out_cubic(k / 0.3))  # readable on frame one, then settles
-        paste_center(im, self.part, W / 2, 230)
         paste_center(im, scaled(self.l1, slam if b == 0 else 1.0).rotate(-4, Image.BICUBIC, expand=True), W / 2, 400)
         if b >= 1:
             paste_center(im, scaled(self.l2, slam if b == 1 else 1.0).rotate(3, Image.BICUBIC, expand=True), W / 2,
@@ -428,12 +425,9 @@ def make_cover(globe, path):
     im.alpha_composite(mm.shade_overlay())
     paste_center(im, mm.rtext("name this", 136, stroke=12), W / 2, 250)
     paste_center(im, mm.rtext("country", 166, fill=CYAN, stroke=14), W / 2, 420)
-    p = rounded_card(330, 90, 45, CYAN + (255,), outline=INK + (255,), width=5)
-    ImageDraw.Draw(p).text((165, 47), "PART 3", font=rfont(58), fill=INK, anchor="mm")
-    paste_center(im, p.rotate(-6, Image.BICUBIC, expand=True), W / 2 - 170, 585)
-    paste_center(im, join(rtext("HARDEST", 74, fill=PINK, stroke=8), emoji("💀", 76)).rotate(5, Image.BICUBIC,
+    paste_center(im, join(rtext("99% FAIL", 84, fill=PINK, stroke=8), emoji("💀", 86)).rotate(-4, Image.BICUBIC,
                                                                                               expand=True),
-                 W / 2 + 190, 585)
+                 W / 2, 585)
     paste_center(im, rtext("?", 300, stroke=18), 830, 1090)
     mm.TILE_Y = 1520
     mm.Tiles("CROATIA", True).draw(im, 1.0, -1.0)
