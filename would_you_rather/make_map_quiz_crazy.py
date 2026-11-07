@@ -6,12 +6,14 @@ title slams), 10 beats per
 country (whip-spin with zoom blur + RGB split, big 3-2-1 slams on the beats,
 reveal with shake / flash / zoom punch / speed lines / sticker), a streak
 counter, glitch transitions and a red heartbeat vignette on the hard levels,
-a narrator, and an ending that loops into the first frame.
+a narrator with "like this video" call-outs after countries 3 and 6, and an
+ending that loops into the first frame.
 Borders: Natural Earth 1:50m (public domain). Flags: public domain.
 
     python3 make_map_quiz_crazy.py
     python3 make_map_quiz_crazy.py --stills 0,1,3
     python3 make_map_quiz_crazy.py --cover
+    python3 make_map_quiz_crazy.py --voice-pack voice_packs/map3_adam      # ElevenLabs Adam narrator
 """
 
 import argparse
@@ -46,6 +48,11 @@ NUM_Y = 405
 FLY_BEATS = 3                    # beats spent spinning from one country to the next
 TIERS = dict(mm.TIERS, IMPOSSIBLE=((200, 40, 255), "☠"))
 START = (G.unit(-40, 28), 620.0)
+CTA_AFTER = (3, 6)               # "like this video" call-outs after these countries (end of MEDIUM and HARD)
+CTA_LINE = "Like this video if you got everything so far!"
+CTA_AT = 2 * B                   # after the reveal, once the answer has been said
+CTA_BEATS = 5                    # extra beats the scene holds for it
+CTA_Y = 1585
 
 COUNTRIES = [  # map code, flag, name, fact, fact emoji, tier, prompt, spoken answer, reaction sticker
     ("PRT", "PT", "PORTUGAL", "its borders haven't changed since 1297", "🏰", "MEDIUM",
@@ -255,8 +262,9 @@ class Country(mv.Scene):
         self.idx, self.globe, self.ui, self.tier = idx, globe, ui, tier
         self.bonus = tier == "BONUS"
         self.danger = tier in ("INSANE", "IMPOSSIBLE", "BONUS")
+        self.cta = idx in CTA_AFTER
         f = FLY_BEATS
-        beats = f + (12 if self.bonus else 8)
+        beats = f + (12 if self.bonus else 8) + (CTA_BEATS if self.cta else 0)
         self.dur = beats * B
         self.fly = f * B
         self.reveal = (f + (7 if self.bonus else 4)) * B
@@ -306,6 +314,18 @@ class Country(mv.Scene):
             if 0.12 + len(v) / SR > self.count_beats[0] * B + 0.1:
                 print(f"warning: prompt {idx} runs into the countdown", flush=True)
             self.voices.append((self.reveal + 0.08, tts.say(said, speed=1.12)))
+            if self.cta:
+                v = tts.say(CTA_LINE, speed=1.12)
+                self.voices.append((self.reveal + CTA_AT, v))
+                if self.reveal + CTA_AT + len(v) / SR > self.dur - 0.2:
+                    print(f"warning: the like line after {idx} runs into the next country", flush=True)
+        if self.cta:
+            self.cta_card = rounded_card(820, 196, 98, INK + (238,), outline=PINK + (255,), width=6)
+            paste_center(self.cta_card, rtext(f"GOT {idx}/{idx} SO FAR?", 52, fill=GOLD, stroke=5), 490, 64)
+            paste_center(self.cta_card, rtext("LIKE THIS VIDEO!", 64, stroke=6), 490, 132)
+            self.thumb = emoji("👍", 132)
+            self.sounds += [(self.reveal + CTA_AT, mv.sfx_pop(), 0.9), (self.reveal + CTA_AT + 0.02, mq.sfx_pling(), 0.5),
+                            (self.reveal + CTA_AT + 0.45, mv.sfx_click(), 0.8)]
         r = random.Random(idx * 31)
         self.conf = [(r.uniform(-1, 1) * 700, r.uniform(-1350, -450), r.randint(12, 26), r.choice(self.cols),
                       r.uniform(0, 3)) for _ in range(60)]
@@ -381,6 +401,23 @@ class Country(mv.Scene):
             im = shake(im, 30 * (1 - rv / 0.35) if rv < 0.35 else 0, t)
             if rv < 0.18:
                 im = rgb_split(im, 16 * (1 - rv / 0.18))
+        if self.cta and rv > CTA_AT:                     # "like this video" card
+            ct = rv - CTA_AT
+            k = ease_out_back(ct / 0.3, 2.0) * (1 - ease_in_cubic(clamp((t - (self.dur - 0.45)) / 0.25)))
+            if k > 0.01:
+                card = self.cta_card.copy()
+                tap = 1 - 0.18 * math.sin(math.pi * clamp((ct - 0.45) / 0.2))   # the thumb "presses" like
+                th = scaled(self.thumb, tap * (1 + 0.08 * beat_pulse(T))).rotate(10 * math.sin(ct * 7), Image.BICUBIC,
+                                                                                 expand=True)
+                paste_center(card, th, 98, 98)
+                s = k * (1 + 0.025 * beat_pulse(T))
+                paste_center(im, scaled(card, s).rotate(-2, Image.BICUBIC, expand=True), W / 2, CTA_Y)
+                rp = (ct - 0.5) / 0.45                    # ripple from the tap
+                if 0 < rp < 1:
+                    d = ImageDraw.Draw(im)
+                    rr, cx = 70 + 110 * ease_out_cubic(rp), W / 2 - 312 * s
+                    d.ellipse((cx - rr, CTA_Y - rr, cx + rr, CTA_Y + rr), outline=PINK + (int(255 * (1 - rp)),),
+                              width=max(1, int(10 * (1 - rp))))
         if self.level_up and t < 0.35:                   # glitch into a harder level
             im = glitch(im, 1 - t / 0.35, int(t * 30) + self.idx * 7)
         out = ease_in_cubic((t - (self.dur - 0.2)) / 0.2)
