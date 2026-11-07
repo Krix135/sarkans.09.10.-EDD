@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """"GUESS THE FOOTBALL CLUB" Short (1080x1920), edited like the crazy map quiz.
 
-Every crest starts as a blocky mosaic that sharpens on each beat of the 3-2-1, then snaps into focus
-on the drop. Night-stadium background (floodlights, sweeping beams, camera flashes, pitch lines),
+Every crest is shown sharp but with the club's name (or initials) taken out of it; on the drop the
+real crest, name and all, slams in. Night-stadium background (floodlights, sweeping beams, camera flashes, pitch lines),
 130 BPM phonk, level banners, glitches, shakes, RGB split, streak counter, letter tiles, one
 "like this video" call-out, and an ending that loops back into the first frame.
 
-Logos: club crests from Wikimedia (club_logos/, not committed: they are the clubs' trademarks).
+Logos: club crests from Wikimedia (club_logos/, not committed: they are the clubs' trademarks);
+club_logos/notext/ holds the same crests with the lettering removed.
 
     python3 make_club_quiz.py --voice-pack voice_packs/club_adam,voice_packs/map3_adam
     python3 make_club_quiz.py --stills 1,9,12
@@ -49,9 +50,6 @@ FLY_BEATS = 3
 TIERS = mc.TIERS
 CTA_AFTER, CTA_LINE, CTA_AT, CTA_BEATS, CTA_Y = (3,), mc.CTA_LINE, 2 * B, 5, 1585
 
-# mosaic block size (px) before the countdown, then on each count beat
-BLOCKS = {"EASY": (72, [50, 33, 22]), "HARD": (84, [62, 44, 30]), "INSANE": (96, [74, 54, 38]),
-          "IMPOSSIBLE": (110, [86, 64, 48]), "BONUS": (124, [104, 88, 74, 62, 52])}
 
 CLUBS = [  # logo file, tiles, spoken answer, fact, fact emoji, tier, prompt, reaction sticker
     ("real_madrid", "REAL MADRID", "Real Madrid!", "founded 1902, nicknamed Los Blancos", "👑", "EASY",
@@ -63,11 +61,11 @@ CLUBS = [  # logo file, tiles, spoken answer, fact, fact emoji, tier, prompt, re
      "😳"),
     ("juventus", "JUVENTUS", "Juventus!", "founded 1897, nicknamed the Old Lady", "🦓", "HARD", "Think fast!", "🤯"),
     ("chelsea", "CHELSEA", "Chelsea!", "founded 1905, nicknamed the Blues", "🦁", "HARD", "Ooh, tricky!", "🔥"),
-    ("dortmund", "DORTMUND", "Borussia Dortmund!", "its home stand is the Yellow Wall", "🟡", "INSANE",
-     "Insane level!", "😱"),
+    ("tottenham", "TOTTENHAM", "Tottenham!", "founded 1882, nicknamed Spurs", "🐓", "INSANE", "Insane level!",
+     "😱"),
     ("ajax", "AJAX", "Ajax!", "founded 1900 in Amsterdam", "🌷", "INSANE", "No way!", "💀"),
     ("benfica", "BENFICA", "Benfica!", "founded 1904, nicknamed the Eagles", "🦅", "INSANE", "Only geniuses!", "🧠"),
-    ("galatasaray", "GALATASARAY", "Galatasaray!", "founded 1905, nicknamed the Lions", "🦁", "IMPOSSIBLE",
+    ("wolves", "WOLVES", "Wolves!", "founded 1877, they play in old gold", "🐺", "IMPOSSIBLE",
      "Impossible level!", "☠"),
     ("boca", "BOCA JUNIORS", "Boca Juniors!", "they play at La Bombonera", "🏟", "BONUS",
      "Bonus! Only one percent!", "👑"),
@@ -80,8 +78,14 @@ ALL_LINES = [INTRO_LINE] + [x for c in CLUBS for x in (c[6], c[2])] + [CTA_LINE,
 # ----------------------------------------------------------------------------
 # crests
 # ----------------------------------------------------------------------------
-def load_logo(key, box=LOGO_BOX):
-    im = Image.open(os.path.join(LOGO_DIR, key + ".png")).convert("RGBA")
+def crest(key, box=LOGO_BOX, notext=False):
+    """Load a crest and put it on its sticker edge."""
+    edge = (22, 30, 74, 255) if key in WHITE_LOGOS else (255, 255, 255, 255)
+    return sticker(load_logo(key, box, notext), edge=edge)
+
+
+def load_logo(key, box=LOGO_BOX, notext=False):
+    im = Image.open(os.path.join(LOGO_DIR, "notext" if notext else "", key + ".png")).convert("RGBA")
     if key == "juventus":                       # the black crest disappears at night: use it in white
         a = np.asarray(im).copy()
         a[..., :3] = 255
@@ -101,29 +105,21 @@ def logo_colours(im):
     return cols or [(255, 255, 255)]
 
 
-def mosaic(im, b):
-    """Blocky pixelation with b-px blocks (alpha included, premultiplied so edges stay clean)."""
-    if b <= 1:
-        return im
-    w, h = im.size
-    sw, sh = max(1, math.ceil(w / b)), max(1, math.ceil(h / b))
-    small = im.convert("RGBa").resize((sw, sh), Image.BOX)
-    big = small.resize((sw * b, sh * b), Image.NEAREST).convert("RGBA")
-    ox, oy = (sw * b - w) // 2, (sh * b - h) // 2
-    return big.crop((ox, oy, ox + w, oy + h))
+WHITE_LOGOS = {"juventus", "tottenham"}     # all-white crests get a dark edge instead of a white one
 
 
-def sticker(im, outline=10):
-    """The crest on a white sticker edge with a soft dark shadow, so any colour reads on the night sky."""
+def sticker(im, outline=10, edge=(255, 255, 255, 255)):
+    """The crest on a sticker edge with a soft dark shadow, so any colour reads on the night sky."""
     pad = outline * 3
     w, h = im.width + 2 * pad, im.height + 2 * pad
     base = Image.new("RGBA", (w, h))
     alpha = Image.new("L", (w, h))
     alpha.paste(im.getchannel("A"), (pad, pad))
+    edge_col = edge
     edge = alpha.filter(ImageFilter.MaxFilter(outline * 2 + 1))
     shadow = edge.filter(ImageFilter.GaussianBlur(outline))
     base.paste(Image.new("RGBA", (w, h), (0, 0, 10, 170)), (0, 8), shadow)
-    base.paste(Image.new("RGBA", (w, h), (255, 255, 255, 255)), (0, 0), edge)
+    base.paste(Image.new("RGBA", (w, h), edge_col), (0, 0), edge)
     base.alpha_composite(im, (pad, pad))
     return base
 
@@ -290,17 +286,17 @@ def shockwave(im, rv, col):
 # scenes
 # ----------------------------------------------------------------------------
 class Intro(mv.Scene):
-    """6 beats: cold open on the mosaic bonus crest, a rapid montage of mystery crests, then the title slams."""
+    """6 beats: cold open on the name-free bonus crest, a rapid montage of mystery crests, then the title slams."""
 
-    TEASE, MONTAGE = "boca", ("galatasaray", "benfica", "ajax", "dortmund")
+    TEASE, MONTAGE = "boca", ("wolves", "benfica", "ajax", "tottenham")
 
     def __init__(self, ui, tts):
         super().__init__()
         self.ui = ui
         self.dur = 6 * B
         self.t1, self.t2 = 1.5 * B, 3.5 * B
-        self.tease = sticker(mosaic(load_logo(self.TEASE, 640), 92))
-        self.cuts = [sticker(mosaic(load_logo(k, 600), 70)) for k in self.MONTAGE]
+        self.tease = crest(self.TEASE, 640, notext=True)
+        self.cuts = [crest(k, 600, notext=True) for k in self.MONTAGE]
         self.o1 = rtext("ONLY 1% KNOW", 124, fill=PINK, stroke=12)
         self.o2 = rtext("THIS CLUB", 128, stroke=11)
         self.q = rtext("?", 300, stroke=18)
@@ -386,8 +382,7 @@ class Club(mv.Scene):
         self.count_beats = list(range(f + 2, f + 7)) if self.bonus else [f + 1, f + 2, f + 3]
         logo = load_logo(key)
         self.cols = logo_colours(logo)
-        pre, steps = BLOCKS[tier]
-        self.stages = [sticker(mosaic(logo, b)) for b in [pre] + steps] + [sticker(logo)]
+        self.quiz_logo, self.full_logo = crest(key, notext=True), crest(key)
         self.tiles = mm.Tiles(name, tier in ("INSANE", "IMPOSSIBLE", "BONUS"))
         size = 42
         while rfont(size).getlength(fact) > 760 and size > 26:
@@ -445,10 +440,7 @@ class Club(mv.Scene):
                       r.uniform(0, 3)) for _ in range(70)]
 
     def stage(self, t):
-        if t >= self.reveal:
-            return self.stages[-1]
-        k = sum(1 for b in self.count_beats if t >= b * B)
-        return self.stages[k]
+        return self.full_logo if t >= self.reveal else self.quiz_logo
 
     def render(self, t):
         T = self.t0 + t
@@ -461,7 +453,7 @@ class Club(mv.Scene):
             im.alpha_composite(self.ui["vig"][int(10 * (0.35 + 0.65 * beat_pulse(T)))])
         if rv > 0:
             im.alpha_composite(speed_lines(1 - clamp(rv / 0.45), self.idx))
-        # the crest: spins in, bounces on the beats, steps sharper on each count, punches on the reveal
+        # the crest (name removed): spins in, bounces on the beats, kicks on each count; the real one slams in
         k_in = clamp(t / (self.fly * 0.55))
         s = ease_out_back(k_in, 1.4) if k_in < 1 else 1.0
         ang = 70 * (1 - ease_out_cubic(k_in))
@@ -660,7 +652,7 @@ def build(voice="am_adam", voice_pack=None):
 def make_cover(ui, path):
     T = 0.0
     im = ui["stadium"].render(T, CYAN, rays=1.0)
-    logo = sticker(mosaic(load_logo("barcelona", 700), 40))
+    logo = crest("barcelona", 700, notext=True)
     paste_center(im, logo.rotate(-6, Image.BICUBIC, expand=True), 540, 1120)
     im.alpha_composite(mm.shade_overlay(0.8))
     paste_center(im, rtext("GUESS THE", 140, stroke=12), W / 2, 250)
