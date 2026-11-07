@@ -42,6 +42,7 @@ B = 60 / BPM                     # one beat
 CENTER = mm.CENTER
 FLAG_DIR = os.path.join(HERE, "flags")
 NUM_Y = 405
+FLY_BEATS = 3                    # beats spent spinning from one country to the next
 TIERS = dict(mm.TIERS, IMPOSSIBLE=((200, 40, 255), "☠"))
 START = (G.unit(-40, 28), 620.0)
 
@@ -207,11 +208,12 @@ class Country(mv.Scene):
         self.idx, self.globe, self.ui, self.tier = idx, globe, ui, tier
         self.bonus = tier == "BONUS"
         self.danger = tier in ("INSANE", "IMPOSSIBLE", "BONUS")
-        beats = 14 if self.bonus else 10
+        f = FLY_BEATS
+        beats = f + (12 if self.bonus else 8)
         self.dur = beats * B
-        self.fly = 2 * B
-        self.reveal = (9 if self.bonus else 6) * B
-        self.count_beats = list(range(4, 9)) if self.bonus else [3, 4, 5]
+        self.fly = f * B
+        self.reveal = (f + (7 if self.bonus else 4)) * B
+        self.count_beats = list(range(f + 2, f + 7)) if self.bonus else [f + 1, f + 2, f + 3]
         c, self.near, _ = globe.world.country(code)
         self.view = (c, G.zoom_for(globe.world, c, self.near, W, H, 0.34, 0.2))
         self.cam = mm.Camera(prev_view, self.view, self.fly, self.dur)
@@ -296,10 +298,10 @@ class Country(mv.Scene):
             st = self.streak[n]
             paste_center(im, scaled(st, s), x1 - st.width / 2 + 10, 288)
         # level banner
-        if self.banner is not None and 0.05 < t < 2 * B + 0.3:
+        if self.banner is not None and 0.05 < t < self.fly + 0.3:
             tb = t - 0.05
             s = 1 + 1.0 * (1 - ease_out_cubic(tb / 0.16))
-            a = clamp(tb / 0.06) * (1 - clamp((tb - 2 * B + 0.05) / 0.25))
+            a = clamp(tb / 0.06) * (1 - clamp((tb - self.fly + 0.05) / 0.25))
             paste_center(im, scaled(self.banner, s).rotate(-4, Image.BICUBIC, expand=True), W / 2, 430, a)
         # big 3-2-1 slams on the beats
         for j, b in enumerate(self.count_beats):
@@ -310,7 +312,7 @@ class Country(mv.Scene):
                 a = 1 - clamp((tb - 0.22) / 0.2)
                 paste_center(im, scaled(num, s).rotate(-6 + 4 * j, Image.BICUBIC, expand=True), W / 2, NUM_Y, a * 0.82)
         # hint tiles, reveal
-        self.tiles.draw(im, t - 3 * B, rv)
+        self.tiles.draw(im, t - self.fly - B, rv)
         if rv > 0:
             cx, cy = getattr(self.globe, "last_hl_center", CENTER)
             for vx, vy, sz, cc, spin in self.conf:
