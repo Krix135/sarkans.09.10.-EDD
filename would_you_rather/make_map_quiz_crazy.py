@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """"name this country": a harder, heavily edited spinning-globe quiz Short (1080x1920).
 
-Everything is cut to a 130 BPM phonk beat: 4-beat hook intro, 10 beats per
+Everything is cut to a 130 BPM phonk beat: 6-beat hook (cold open on the bonus country, mystery montage,
+title slams), 10 beats per
 country (whip-spin with zoom blur + RGB split, big 3-2-1 slams on the beats,
 reveal with shake / flash / zoom punch / speed lines / sticker), a streak
 counter, glitch transitions and a red heartbeat vignette on the hard levels,
@@ -153,51 +154,97 @@ def beat_pulse(T):
 # ----------------------------------------------------------------------------
 
 class Intro(mv.Scene):
-    """4 beats: HARDEST / MAP QUIZ / 99% FAIL / NAME THEM ALL, over a fast-spinning globe."""
+    """6 beats: cold open on the glowing bonus country, a rapid-fire montage of mystery countries,
+    then HARDEST / MAP QUIZ / 99% FAIL over the spinning globe and a whip into country 1."""
+
+    TEASE, MONTAGE = "GMB", ("CUB", "LAO", "HRV", "MWI")
 
     def __init__(self, globe, ui, tts):
         super().__init__()
         self.globe, self.ui = globe, ui
-        self.dur = 4 * B
+        self.dur = 6 * B
+        self.t1, self.t2 = 1.5 * B, 3.5 * B          # cold open | montage | globe
+        w = globe.world
+
+        def view(code, zf=1.0):
+            c, near, _ = w.country(code)
+            return c, G.zoom_for(w, c, near, W, H, 0.34, 0.2) * zf, near
+        self.tease = view(self.TEASE, 0.8)
+        self.cuts = [view(c) for c in self.MONTAGE]
+        self.o1 = rtext("ONLY 1% KNOW", 124, fill=PINK, stroke=12)
+        self.o2 = rtext("THIS COUNTRY", 108, stroke=10)
+        self.q = rtext("?", 300, stroke=18)
+        self.o3 = join(rtext("answer at the end", 60, fill=GOLD, stroke=7), emoji("👀", 64))
+        self.m1 = rtext("CAN YOU NAME", 108, stroke=10)
+        self.m2 = rtext("ALL OF THEM?", 120, fill=CYAN, stroke=11)
         self.l1 = rtext("HARDEST", 180, fill=PINK, stroke=14)
         self.l2 = rtext("MAP QUIZ", 150, stroke=13)
         self.l3 = join(rtext("99% FAIL", 120, fill=GOLD, stroke=11), emoji("💀", 120))
-        self.l4 = join(rtext("name them all", 92, fill=CYAN, stroke=9), emoji("👀", 96))
-        self.sounds += [(0.0, mq.sfx_boom(), 1.0), (0.0, mv.sfx_whoosh(0.4), 0.6), (B, mq.sfx_boom(), 0.6),
-                        (2 * B, mq.sfx_boom(), 0.7), (3 * B, mv.sfx_riser(B), 0.7),
-                        (4 * B - 0.3, mv.sfx_whoosh(0.4), 0.9)]
+        self.sounds += [(0.0, mq.sfx_boom(), 1.0), (0.0, mv.sfx_whoosh(0.4), 0.6), (0.02, sfx_heartbeat(), 0.9),
+                        (B, sfx_heartbeat(), 0.8), (self.t2, mq.sfx_boom(), 0.9), (4 * B, mv.sfx_pop(), 0.9),
+                        (4.5 * B, mq.sfx_boom(), 0.6), (4.5 * B, mv.sfx_riser(1.5 * B), 0.7),
+                        (6 * B - 0.3, mv.sfx_whoosh(0.4), 0.9)]
+        for k in range(len(self.cuts)):
+            at = self.t1 + k * 0.5 * B
+            self.sounds += [(at, mq.sfx_boom(), 0.45), (at, mq.sfx_glitch(), 0.35), (at, mv.sfx_click(), 0.7)]
         if tts:
-            self.voices.append((0.05, tts.say("The hardest map quiz ever!", speed=1.18)))
+            self.voices.append((0.04, tts.say("Only one percent can name this!", speed=1.18)))
 
     def view(self, t):
-        lon = -110 + 70 * clamp(t / self.dur) ** 0.7  # fast spin that settles on the start view
+        lon = -110 + 70 * clamp((t - self.t2) / (self.dur - self.t2)) ** 0.7  # settles on the start view
         return G.unit(lon, 28), 620.0
 
     def render(self, t):
-        c, R = self.view(t)
-        R *= 1 + 0.06 * beat_pulse(self.t0 + t)
-        im = self.globe.render(c, R, CENTER)
-        im = rgb_split(im, 10 * (1 - clamp(t / (3 * B))))
-        im.alpha_composite(self.ui["shade"])
-        im.alpha_composite(Image.new("RGBA", (W, H), (10, 5, 30, 70)))
-        b = int(t / B)
-        k = (t % B) / B
-        slam = 1 + 0.1 * (1 - ease_out_cubic(k / 0.3))  # readable on frame one, then settles
-        paste_center(im, scaled(self.l1, slam if b == 0 else 1.0).rotate(-4, Image.BICUBIC, expand=True), W / 2, 400)
-        if b >= 1:
-            paste_center(im, scaled(self.l2, slam if b == 1 else 1.0).rotate(3, Image.BICUBIC, expand=True), W / 2,
-                         575)
-        if b >= 2:
-            paste_center(im, scaled(self.l3, slam if b == 2 else 1.0), W / 2, 1360)
-        if b >= 3:
-            paste_center(im, scaled(self.l4, slam), W / 2, 1500)
-        whip = ease_in_cubic((t - (self.dur - 0.2)) / 0.2)
-        im = shake(im, 22 * (1 - k) if k < 0.35 else 0, t)
-        if whip > 0:
-            im = rgb_split(mm.zoom_blur(im, whip), 24 * whip)
-        f = 1 - clamp(t / 0.12)
-        if f > 0:
-            im.alpha_composite(Image.new("RGBA", (W, H), (255, 255, 255, int(60 * f))))
+        T = self.t0 + t
+        if t < self.t1:                                   # cold open on the mystery country
+            c, R, near = self.tease
+            R *= (1.12 - 0.12 * ease_out_cubic(t / 0.3)) * (1 + 0.05 * beat_pulse(T))
+            im = self.globe.render(c, R, CENTER, near, 1.0, lift=16 + 8 * math.sin(t * 9))
+            im.alpha_composite(self.ui["shade"])
+            im.alpha_composite(self.ui["vig"][int(10 * (0.35 + 0.45 * beat_pulse(T)))])
+            s = 1 + 0.08 * (1 - ease_out_cubic(t / 0.2))   # readable on frame one
+            paste_center(im, scaled(self.o1, s).rotate(-3, Image.BICUBIC, expand=True), W / 2, 300)
+            paste_center(im, scaled(self.o2, s).rotate(2, Image.BICUBIC, expand=True), W / 2, 440)
+            paste_center(im, scaled(self.q, 1 + 0.12 * math.sin(t * 12)).rotate(10 * math.sin(t * 6), Image.BICUBIC,
+                                                                                   expand=True), 840, 1010)
+            paste_center(im, self.o3, W / 2, 1480)
+            im = shake(im, 26 * (1 - t / 0.3) if t < 0.3 else 0, t)
+            im = rgb_split(im, 12 * (1 - clamp(t / 0.25)))
+        elif t < self.t2:                                 # rapid-fire montage
+            k = min(len(self.cuts) - 1, int((t - self.t1) / (0.5 * B)))
+            tc = t - self.t1 - k * 0.5 * B
+            c, R, near = self.cuts[k]
+            im = self.globe.render(c, R * (1.08 - 0.08 * ease_out_cubic(tc / 0.15)), CENTER, near, 1.0, lift=14)
+            im.alpha_composite(self.ui["shade"])
+            s = 1 + 0.12 * (1 - ease_out_cubic((t - self.t1) / 0.15))
+            paste_center(im, scaled(self.m1, s).rotate(-3, Image.BICUBIC, expand=True), W / 2, 300)
+            paste_center(im, scaled(self.m2, s).rotate(3, Image.BICUBIC, expand=True), W / 2, 440)
+            paste_center(im, self.q, 840, 1010)
+            im = rgb_split(im, 18 * (1 - clamp(tc / 0.12)))
+            if tc < 0.06:
+                im.alpha_composite(Image.new("RGBA", (W, H), (255, 255, 255, 120)))
+        else:                                             # globe + title slams on the beats
+            tg = t - self.t2
+            c, R = self.view(t)
+            R *= 1 + 0.06 * beat_pulse(T)
+            im = self.globe.render(c, R, CENTER)
+            im = rgb_split(im, 10 * (1 - clamp(tg / B)))
+            im.alpha_composite(self.ui["shade"])
+            im.alpha_composite(Image.new("RGBA", (W, H), (10, 5, 30, 70)))
+            b = int(tg / (0.5 * B))
+            kk = (tg % (0.5 * B)) / (0.5 * B)
+            slam = 1 + 0.35 * (1 - ease_out_cubic(kk / 0.4))
+            paste_center(im, scaled(self.l1, slam if b == 0 else 1.0).rotate(-4, Image.BICUBIC, expand=True), W / 2,
+                         400)
+            if b >= 1:
+                paste_center(im, scaled(self.l2, slam if b == 1 else 1.0).rotate(3, Image.BICUBIC, expand=True),
+                             W / 2, 575)
+            if b >= 2:
+                paste_center(im, scaled(self.l3, slam if b == 2 else 1.0), W / 2, 1400)
+            im = shake(im, 22 * (1 - kk) if kk < 0.4 and b <= 2 else 0, t)
+            whip = ease_in_cubic((t - (self.dur - 0.22)) / 0.22)
+            if whip > 0:
+                im = rgb_split(mm.zoom_blur(im, whip), 24 * whip)
         return im
 
 
