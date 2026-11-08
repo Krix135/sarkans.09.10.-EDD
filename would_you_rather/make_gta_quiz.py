@@ -666,6 +666,8 @@ def main():
     ap.add_argument("--voice", default="am_adam")
     ap.add_argument("--voice-pack", default=None, help="comma-separated voice pack folders (lines.txt + 00.wav...)")
     ap.add_argument("--music", default="phonk", choices=["phonk", "none"])
+    ap.add_argument("--audio-only", action="store_true", help="rebuild only the sound of --src and write it to --out")
+    ap.add_argument("--src", default=None, help="video whose picture --audio-only reuses (default: --out)")
     ap.add_argument("--workers", type=int, default=os.cpu_count() or 2)
     a = ap.parse_args()
     quiet = a.cover
@@ -673,6 +675,19 @@ def main():
     print(f"Duration {total:.1f}s ({total / B:.0f} beats)")
     if a.cover:
         make_cover(ui, os.path.join(HERE, "gta_quiz_cover.jpg"))
+        return
+    if a.audio_only:  # same picture, new sound (e.g. --music none, to add a licensed song in the YouTube app)
+        import make_movie_quiz as mmq
+        work = os.path.join(mv.CACHE_DIR, "render_gta")
+        os.makedirs(work, exist_ok=True)
+        src, wav = os.path.join(work, "video_src.mp4"), os.path.join(work, "audio_only.wav")
+        subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", a.src or a.out, "-map", "0:v", "-c", "copy", src],
+                       check=True)
+        mv.write_wav(wav, mmq.mix_audio(scenes, starts, total, a.music))
+        subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", src, "-i", wav, "-map", "0:v", "-map", "1:a",
+                        "-c:v", "copy", "-af", "loudnorm=I=-14:TP=-1.5:LRA=11", "-ar", str(SR), "-c:a", "aac",
+                        "-b:a", "192k", "-movflags", "+faststart", "-shortest", a.out], check=True)
+        print(f"Done (audio only): {a.out}")
         return
     mv.G["scenes"], mv.G["starts"] = scenes, starts
     if a.stills:
