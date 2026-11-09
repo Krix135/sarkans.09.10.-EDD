@@ -545,18 +545,18 @@ class VoicePack:
         return self.clips[text]
 
 
-def build(voice="af_heart", voice_pack=None):
+def build(voice="af_heart", voice_pack=None, with_intro=True):
     globe = G.GlobeRenderer(W, H)
     tts = VoicePack(voice_pack) if voice_pack else (mv.TTS(voice, "en-us") if voice != "none" else None)
     ui = {"shade": mm.shade_overlay(), "vig": [red_vignette(i / 10) for i in range(11)]}
-    intro = Intro(globe, ui, tts)
-    scenes, view, prev = [intro], (intro.view(intro.dur)[0], 620.0), "MEDIUM"
+    intro = Intro(globe, ui, tts)                  # also gives the camera its starting view
+    scenes, view, prev = ([intro] if with_intro else []), (intro.view(intro.dur)[0], 620.0), "MEDIUM"
     for i, q in enumerate(COUNTRIES, 1):
         sc = Country(i, q, view, prev if i > 1 else q[5], globe, ui, tts)
         scenes.append(sc)
         c, R = sc.view
         view, prev = (c, R * 1.07), q[5]
-    scenes.append(Ending(view, globe, ui, intro, tts))
+    scenes.append(Ending(view, globe, ui, intro if with_intro else scenes[0], tts))  # loops into the first frame
     starts, t = [], 0.0
     for sc in scenes:
         sc.t0 = t
@@ -588,6 +588,7 @@ def make_cover(globe, path):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--episode", type=int, default=3, choices=sorted(EPISODES))
+    ap.add_argument("--no-intro", action="store_true", help="start straight on the first country")
     ap.add_argument("--out", default=None, help="default: short_map_quiz_<episode>.mp4")
     ap.add_argument("--stills", default=None)
     ap.add_argument("--cover", action="store_true")
@@ -601,7 +602,8 @@ def main():
     num = EPISODES[a.episode][4]
     a.out = a.out or os.path.join(HERE, f"short_map_quiz_{num}.mp4")
     quiet = a.stills or a.cover
-    scenes, starts, total, globe = build(a.voice if not quiet else "none", None if quiet else a.voice_pack)
+    scenes, starts, total, globe = build(a.voice if not quiet else "none", None if quiet else a.voice_pack,
+                                         with_intro=not a.no_intro)
     print(f"Duration {total:.1f}s ({total / B:.0f} beats)")
     if a.audio_only:  # same picture, new sound
         import make_movie_quiz as mmq
