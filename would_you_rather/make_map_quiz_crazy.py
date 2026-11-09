@@ -99,18 +99,18 @@ COUNTRIES_4 = [  # episode 4: easier, and none of these were in episodes 1-3
 
 EPISODES = {  # countries, cold-open country, montage, cover (country, view lon/lat, zoom, tiles), file number
     3: (COUNTRIES, "GMB", ("CUB", "LAO", "HRV", "MWI"), ("HRV", 17.5, 44.5, 0.55, "CROATIA"), 3,
-        ("HARDEST", "MAP QUIZ")),
+        ("HARDEST", "MAP QUIZ"), (3,)),
     4: (COUNTRIES_4, "LKA", ("IRL", "KOR", "ZAF", "NOR"), ("NOR", 15.0, 65.5, 1.25, "NORWAY"), 4,
-        ("NAME THE", "COUNTRY")),
-}
+        ("NAME THE", "COUNTRY"), ()),
+}  # ... intro title, countries followed by the "like this video" call-out
 EPISODE = 3
 COVER = EPISODES[3][3]
 
 
 def set_episode(ep):
-    global COUNTRIES, COVER, EPISODE
+    global COUNTRIES, COVER, EPISODE, CTA_AFTER
     EPISODE = ep
-    COUNTRIES, tease, montage, COVER, _, title = EPISODES[ep]
+    COUNTRIES, tease, montage, COVER, _, title, CTA_AFTER = EPISODES[ep]
     Intro.TEASE, Intro.MONTAGE, Intro.TITLE = tease, montage, title
 
 
