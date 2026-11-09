@@ -14,6 +14,7 @@ Borders: Natural Earth 1:50m (public domain). Flags: public domain.
     python3 make_map_quiz_crazy.py --stills 0,1,3
     python3 make_map_quiz_crazy.py --cover
     python3 make_map_quiz_crazy.py --voice-pack voice_packs/map3_adam      # ElevenLabs Adam narrator
+    python3 make_map_quiz_crazy.py --episode 4                             # easier episode, new countries
 """
 
 import argparse
@@ -75,6 +76,42 @@ COUNTRIES = [  # map code, flag, name, fact, fact emoji, tier, prompt, spoken an
     ("GMB", "GM", "THE GAMBIA", "the smallest country on mainland Africa", "🤯", "BONUS",
      "Bonus! Only one percent!", "The Gambia!", "👑"),
 ]
+
+
+COUNTRIES_4 = [  # episode 4: easier, and none of these were in episodes 1-3
+    ("BRA", "BR", "BRAZIL", "about 60% of the Amazon rainforest is here", "🌳", "EASY", "Name this country!",
+     "Brazil!", "😎"),
+    ("IND", "IN", "INDIA", "the most populous country on Earth", "👥", "EASY", "Next!", "India!", "🔥"),
+    ("AUS", "AU", "AUSTRALIA", "it's a country and a continent", "🦘", "EASY", "Too easy?", "Australia!", "🤔"),
+    ("JPN", "JP", "JAPAN", "it's made of over 14,000 islands", "🗾", "MEDIUM", "Think fast!", "Japan!", "😳"),
+    ("NOR", "NO", "NORWAY", "up north the sun doesn't set in summer", "☀", "MEDIUM", "Ooh, tricky!", "Norway!",
+     "🤯"),
+    ("ARG", "AR", "ARGENTINA", "home to the highest peak in the Americas", "🏔", "MEDIUM", "Next!", "Argentina!",
+     "🔥"),
+    ("DEU", "DE", "GERMANY", "it has over 1,500 kinds of sausage", "🌭", "HARD", "Hard level!", "Germany!", "😱"),
+    ("ZAF", "ZA", "SOUTH AFRICA", "it has three capital cities", "🏛", "HARD", "No way!", "South Africa!", "💀"),
+    ("KOR", "KR", "SOUTH KOREA", "half its people live in and around Seoul", "🏙", "HARD", "Only geniuses!",
+     "South Korea!", "🧠"),
+    ("IRL", "IE", "IRELAND", "Halloween started here", "🎃", "INSANE", "Insane level!", "Ireland!", "☠"),
+    ("LKA", "LK", "SRI LANKA", "one of the world's biggest tea exporters", "🍵", "BONUS", "Bonus! Only one percent!",
+     "Sri Lanka!", "👑"),
+]
+
+EPISODES = {  # countries, cold-open country, montage, cover (country, view lon/lat, zoom, tiles), file number
+    3: (COUNTRIES, "GMB", ("CUB", "LAO", "HRV", "MWI"), ("HRV", 17.5, 44.5, 0.55, "CROATIA"), 3,
+        ("HARDEST", "MAP QUIZ")),
+    4: (COUNTRIES_4, "LKA", ("IRL", "KOR", "ZAF", "NOR"), ("NOR", 15.0, 65.5, 1.25, "NORWAY"), 4,
+        ("NAME THE", "COUNTRY")),
+}
+EPISODE = 3
+COVER = EPISODES[3][3]
+
+
+def set_episode(ep):
+    global COUNTRIES, COVER, EPISODE
+    EPISODE = ep
+    COUNTRIES, tease, montage, COVER, _, title = EPISODES[ep]
+    Intro.TEASE, Intro.MONTAGE, Intro.TITLE = tease, montage, title
 
 
 # ----------------------------------------------------------------------------
@@ -166,6 +203,7 @@ class Intro(mv.Scene):
     then HARDEST / MAP QUIZ / 99% FAIL over the spinning globe and a whip into country 1."""
 
     TEASE, MONTAGE = "GMB", ("CUB", "LAO", "HRV", "MWI")
+    TITLE = ("HARDEST", "MAP QUIZ")
 
     def __init__(self, globe, ui, tts):
         super().__init__()
@@ -185,8 +223,8 @@ class Intro(mv.Scene):
         self.o3 = join(rtext("answer at the end", 60, fill=GOLD, stroke=7), emoji("👀", 64))
         self.m1 = rtext("CAN YOU NAME", 108, stroke=10)
         self.m2 = rtext("ALL OF THEM?", 120, fill=CYAN, stroke=11)
-        self.l1 = rtext("HARDEST", 180, fill=PINK, stroke=14)
-        self.l2 = rtext("MAP QUIZ", 150, stroke=13)
+        self.l1 = rtext(self.TITLE[0], 180, fill=PINK, stroke=14)
+        self.l2 = rtext(self.TITLE[1], 150, stroke=13)
         self.l3 = join(rtext("99% FAIL", 120, fill=GOLD, stroke=11), emoji("💀", 120))
         self.sounds += [(0.0, mq.sfx_boom(), 1.0), (0.0, mv.sfx_whoosh(0.4), 0.6), (0.02, sfx_heartbeat(), 0.9),
                         (B, sfx_heartbeat(), 0.8), (self.t2, mq.sfx_boom(), 0.9), (4 * B, mv.sfx_pop(), 0.9),
@@ -487,15 +525,19 @@ class Ending(mv.Scene):
 class VoicePack:
     """Pre-recorded narrator lines (e.g. ElevenLabs): DIR/lines.txt lists the text, DIR/00.wav... the audio."""
 
-    def __init__(self, folder):
+    def __init__(self, folders):
+        """folders: one folder, or several separated by commas (earlier ones win)."""
         import wave
-        with open(os.path.join(folder, "lines.txt")) as fh:
-            texts = [ln.strip() for ln in fh if ln.strip()]
         self.clips = {}
-        for k, text in enumerate(texts):
-            with wave.open(os.path.join(folder, f"{k:02d}.wav")) as w:
-                assert w.getframerate() == SR, "voice pack clips must be 48 kHz"
-                self.clips[text] = np.frombuffer(w.readframes(w.getnframes()), np.int16).astype(np.float64) / 32767
+        for folder in folders.split(","):
+            with open(os.path.join(folder, "lines.txt")) as fh:
+                texts = [ln.strip() for ln in fh if ln.strip()]
+            for k, text in enumerate(texts):
+                if text in self.clips:
+                    continue
+                with wave.open(os.path.join(folder, f"{k:02d}.wav")) as w:
+                    assert w.getframerate() == SR, "voice pack clips must be 48 kHz"
+                    self.clips[text] = np.frombuffer(w.readframes(w.getnframes()), np.int16).astype(np.float64) / 32767
 
     def say(self, text, speed=None):
         if text not in self.clips:
@@ -524,9 +566,10 @@ def build(voice="af_heart", voice_pack=None):
 
 
 def make_cover(globe, path):
-    c, near, _ = globe.world.country("HRV")
-    R = G.zoom_for(globe.world, c, near, W, H, 0.36, 0.22) * 0.55
-    im = globe.render(G.unit(17.5, 44.5), R, (540, 1130), near, 1.0, lift=20)
+    code, lon, lat, zf, tiles = COVER
+    c, near, _ = globe.world.country(code)
+    R = G.zoom_for(globe.world, c, near, W, H, 0.36, 0.22) * zf
+    im = globe.render(G.unit(lon, lat), R, (540, 1130), near, 1.0, lift=20)
     im = rgb_split(im, 6)
     im.alpha_composite(mm.shade_overlay())
     paste_center(im, mm.rtext("name this", 136, stroke=12), W / 2, 250)
@@ -536,7 +579,7 @@ def make_cover(globe, path):
                  W / 2, 585)
     paste_center(im, rtext("?", 300, stroke=18), 830, 1090)
     mm.TILE_Y = 1520
-    mm.Tiles("CROATIA", True).draw(im, 1.0, -1.0)
+    mm.Tiles(tiles, True).draw(im, 1.0, -1.0)
     mm.TILE_Y = 1292
     im.convert("RGB").save(path, quality=92)
     print(path)
@@ -544,7 +587,8 @@ def make_cover(globe, path):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--out", default=os.path.join(HERE, "short_map_quiz_3.mp4"))
+    ap.add_argument("--episode", type=int, default=3, choices=sorted(EPISODES))
+    ap.add_argument("--out", default=None, help="default: short_map_quiz_<episode>.mp4")
     ap.add_argument("--stills", default=None)
     ap.add_argument("--cover", action="store_true")
     ap.add_argument("--voice", default="af_heart")
@@ -553,12 +597,15 @@ def main():
     ap.add_argument("--audio-only", action="store_true", help="rebuild only the sound and swap it into --out")
     ap.add_argument("--workers", type=int, default=os.cpu_count() or 2)
     a = ap.parse_args()
+    set_episode(a.episode)
+    num = EPISODES[a.episode][4]
+    a.out = a.out or os.path.join(HERE, f"short_map_quiz_{num}.mp4")
     quiet = a.stills or a.cover
     scenes, starts, total, globe = build(a.voice if not quiet else "none", None if quiet else a.voice_pack)
     print(f"Duration {total:.1f}s ({total / B:.0f} beats)")
     if a.audio_only:  # same picture, new sound
         import make_movie_quiz as mmq
-        work = os.path.join(mv.CACHE_DIR, "render_map3")
+        work = os.path.join(mv.CACHE_DIR, f"render_map{num}")
         os.makedirs(work, exist_ok=True)
         src, wav = os.path.join(work, "video_src.mp4"), os.path.join(work, "audio_only.wav")
         subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", a.out, "-map", "0:v", "-c", "copy", src], check=True)
@@ -569,19 +616,19 @@ def main():
         print(f"Done (audio only): {a.out}")
         return
     if a.cover:
-        make_cover(globe, os.path.join(HERE, "map_quiz_3_cover.jpg"))
+        make_cover(globe, os.path.join(HERE, f"map_quiz_{num}_cover.jpg"))
         return
     mv.G["scenes"], mv.G["starts"] = scenes, starts
     if a.stills:
         d = os.path.join(mv.CACHE_DIR, "stills")
         os.makedirs(d, exist_ok=True)
         for s in a.stills.split(","):
-            p = os.path.join(d, f"map3_{float(s):06.2f}.png")
+            p = os.path.join(d, f"map{num}_{float(s):06.2f}.png")
             mv.frame_at(int(float(s) * FPS)).save(p)
             print(p)
         return
     import make_movie_quiz as mmq
-    work = os.path.join(mv.CACHE_DIR, "render_map3")
+    work = os.path.join(mv.CACHE_DIR, f"render_map{num}")
     os.makedirs(work, exist_ok=True)
     for f in os.listdir(work):
         os.remove(os.path.join(work, f))
