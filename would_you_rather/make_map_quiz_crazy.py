@@ -366,6 +366,7 @@ class Country(mv.Scene):
             self.sounds += [(self.reveal + CTA_AT, mv.sfx_pop(), 0.9), (self.reveal + CTA_AT + 0.02, mq.sfx_pling(), 0.5),
                             (self.reveal + CTA_AT + 0.45, mv.sfx_click(), 0.8)]
         r = random.Random(idx * 31)
+        self.title = None                          # "NAME THIS COUNTRY" hook, set on the first scene with no intro
         self.conf = [(r.uniform(-1, 1) * 700, r.uniform(-1350, -450), r.randint(12, 26), r.choice(self.cols),
                       r.uniform(0, 3)) for _ in range(60)]
 
@@ -389,6 +390,18 @@ class Country(mv.Scene):
         if rv > 0:
             im.alpha_composite(speed_lines(1 - clamp(rv / 0.45), self.idx))
         d = ImageDraw.Draw(im)
+        if self.title is not None:                 # opening title: on screen from frame one, flies off before the 3
+            t_end = self.count_beats[0] * B - 0.05
+            if t < t_end:
+                l1, l2 = self.title
+                pop = 1 + 0.12 * (1 - ease_out_cubic(clamp(t / 0.25))) + 0.04 * beat_pulse(T)
+                out = ease_in_cubic(clamp((t - (t_end - 0.25)) / 0.25))
+                a = 1 - out
+                dy = -260 * out
+                paste_center(im, scaled(l1, pop * (1 + 0.3 * out)).rotate(-3, Image.BICUBIC, expand=True), W / 2,
+                             470 + dy, a)
+                paste_center(im, scaled(l2, pop * (1 + 0.3 * out)).rotate(2, Image.BICUBIC, expand=True), W / 2,
+                             640 + dy, a)
         # top bar: count, timer, tier tag, streak
         paste_center(im, self.count, 92 + (20 if self.bonus else 0), 222)
         x0, x1, y, bh = 160 + (40 if self.bonus else 0), 1000, 222, 22
@@ -556,6 +569,11 @@ def build(voice="af_heart", voice_pack=None, with_intro=True):
         scenes.append(sc)
         c, R = sc.view
         view, prev = (c, R * 1.07), q[5]
+    if not with_intro:
+        l1 = rtext("NAME THIS", 150, stroke=13)
+        l2 = join(rtext("COUNTRY", 170, fill=CYAN, stroke=15), emoji("🌍", 140), gap=16)
+        fit = lambda im: scaled(im, min(1.0, 880 / im.width))  # noqa: E731  (stay inside the screen, pop included)
+        scenes[0].title = (fit(l1), fit(l2))
     scenes.append(Ending(view, globe, ui, intro if with_intro else scenes[0], tts))  # loops into the first frame
     starts, t = [], 0.0
     for sc in scenes:
