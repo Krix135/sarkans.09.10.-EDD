@@ -353,7 +353,7 @@ class Round(mv.Scene):
             if rv > 0 and side == self.win:
                 kr = ease_out_back(clamp((rv - 0.1) / 0.25), 2.2)
                 if kr > 0.01:
-                    paste_center(im, scaled(self.ribbon, 1.5 - 0.5 * kr), cx - 190, cy - CARD_H / 2 + 52, min(1.0, kr))
+                    paste_center(im, scaled(self.ribbon, 1.5 - 0.5 * kr), cx - 275, cy - CARD_H / 2 + 56, min(1.0, kr))
                 ks = ease_out_back((rv - 0.15) / 0.25, 2.2)
                 if ks > 0.01:
                     paste_center(im, scaled(self.sticker, ks).rotate(14 * math.sin(rv * 7), Image.BICUBIC,
