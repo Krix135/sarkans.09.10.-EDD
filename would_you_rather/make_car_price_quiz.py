@@ -4,7 +4,7 @@
 Two real car photos per round (top and bottom card, VS badge in the middle). The narrator names
 both cars, a 3-2-1 runs inside the VS badge on the beat, then both price tags count up, the pricier
 car gets a gold frame and a MORE EXPENSIVE ribbon and the other dims. EASY -> HARD -> INSANE ->
-IMPOSSIBLE, plus a bonus. Prices are approximate US starting prices (rounded); photos are from
+IMPOSSIBLE. Prices are approximate US starting prices (rounded); photos are from
 Wikimedia Commons under free licences (credits in car_photos_credits.json and the description).
 
     python3 make_car_price_quiz.py --voice-pack voice_packs/carprice_adam,voice_packs/map3_adam
@@ -69,8 +69,6 @@ ROUNDS = [  # car A (top), car B (bottom), tier, spoken question, spoken answer,
     ("cullinan", "revuelto", "HARD", "Rolls-Royce Cullinan, or Lamborghini Revuelto?", "The Revuelto!", "😱"),
     ("sf90", "valkyrie", "INSANE", "Ferrari SF90, or Aston Martin Valkyrie?", "The Valkyrie!", "💀"),
     ("chiron_ss", "jesko", "IMPOSSIBLE", "Bugatti Chiron Super Sport, or Koenigsegg Jesko?", "The Bugatti!", "☠"),
-    ("voiture_noire", "boat_tail", "BONUS", "Bonus! Bugatti La Voiture Noire, or Rolls-Royce Boat Tail?",
-     "The Boat Tail! Twenty-eight million!", "👑"),
 ]
 INTRO_LINE = "Which car costs more? Only real car fans get them all!"
 END_LINE = "How many did you get? Comment your score!"
@@ -178,7 +176,7 @@ class Showroom:
 # scenes
 # ----------------------------------------------------------------------------
 class Intro(mv.Scene):
-    MONTAGE = ("boat_tail", "valkyrie", "cybertruck", "revuelto")
+    MONTAGE = ("valkyrie", "revuelto", "cybertruck", "jesko")
 
     def __init__(self, ui, tts):
         super().__init__()
@@ -437,7 +435,6 @@ class Ending(mv.Scene):
             dr.text((200, 52), label, font=rfont(58, "SemiBold"), fill=colr, anchor="lm")
             row.alpha_composite(emoji(e, 60), (800 - 96, 22))
             self.rows.append(row)
-        self.bonus = join(rtext("+ bonus = BILLIONAIRE", 56, fill=GOLD, stroke=6), emoji("💎", 60))
         self.cta = join(rtext("comment your score", 58, stroke=6), emoji("👇", 62))
         self.note = rtext("prices: approx. new-car prices in the US", 34, fill=(200, 200, 215), stroke=3)
         self.sounds += [(0.0, mv.sfx_whoosh(0.8), 0.7), (B, mq.sfx_levelup(), 0.9)]
@@ -459,10 +456,9 @@ class Ending(mv.Scene):
             k = ease_out_cubic((t - (1.5 + 0.5 * i) * B) / 0.2)
             if k > 0:
                 paste_center(im, row, W / 2 + (1 - k) * 160, 620 + i * 122, k * a)
-        paste_center(im, scaled(self.bonus, ease_out_back((t - 4.5 * B) / 0.25)), W / 2, 1255, a)
         paste_center(im, scaled(self.cta, ease_out_back((t - 5 * B) / 0.25) * (1 + 0.03 * math.sin(t * 8))),
-                     W / 2, 1350, a)
-        paste_center(im, self.note, W / 2, 1450, clamp((t - 5 * B) / 0.3) * a)
+                     W / 2, 1285, a)
+        paste_center(im, self.note, W / 2, 1385, clamp((t - 5 * B) / 0.3) * a)
         if t < 0.2:
             im = rgb_split(mm.zoom_blur(im, 1 - t / 0.2), 18 * (1 - t / 0.2))
         if out > 0:
