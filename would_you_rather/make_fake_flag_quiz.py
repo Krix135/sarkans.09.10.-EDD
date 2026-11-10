@@ -178,7 +178,9 @@ class Round(mv.Scene):
         self.fly = f * B
         self.count_beats = [f + 3, f + 4, f + 5]
         self.reveal = (f + 6) * B
-        self.dur = (f + 11) * B
+        v_ans = tts.say(said, speed=1.12) if tts else None
+        a_len = len(v_ans) / SR if v_ans is not None else 1.5
+        self.dur = (f + 6 + max(5, math.ceil((0.1 + a_len + 0.35) / B))) * B   # time for the answer
         rnd = random.Random(idx * 101 + 7)
         others = rnd.sample([c for c in POOL if c != code], 3)
         self.fake_pos = rnd.randrange(4)
@@ -231,10 +233,7 @@ class Round(mv.Scene):
             self.voices.append((0.12, v))
             if 0.12 + len(v) / SR > self.count_beats[0] * B + 0.1:
                 print(f"warning: prompt {idx} runs into the countdown", flush=True)
-            v = tts.say(said, speed=1.12)
-            self.voices.append((self.reveal + 0.1, v))
-            if self.reveal + 0.1 + len(v) / SR > self.dur - 0.1:
-                print(f"warning: answer {idx} runs into the next round", flush=True)
+            self.voices.append((self.reveal + 0.1, v_ans))
         r2 = random.Random(idx * 31)
         self.conf = [(r2.uniform(-1, 1) * 600, r2.uniform(-1200, -400), r2.randint(12, 24),
                       r2.choice([GOLD, CYAN, PINK, (255, 255, 255)]), r2.uniform(0, 3)) for _ in range(50)]
