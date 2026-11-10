@@ -15,7 +15,7 @@ Borders: Natural Earth 1:50m (public domain). Flags: public domain.
     python3 make_map_quiz_crazy.py --cover
     python3 make_map_quiz_crazy.py --voice-pack voice_packs/map3_adam      # ElevenLabs Adam narrator
     python3 make_map_quiz_crazy.py --episode 4                             # easier episode, new countries
-    python3 make_map_quiz_crazy.py --episode 5 --no-intro                  # hard again, new countries
+    python3 make_map_quiz_crazy.py --episode 5                             # hard again, new countries
 """
 
 import argparse
@@ -122,7 +122,7 @@ EPISODES = {  # countries, cold-open country, montage, cover (country, view lon/
     4: (COUNTRIES_4, "LKA", ("IRL", "KOR", "ZAF", "NOR"), ("NOR", 15.0, 65.5, 1.25, "NORWAY"), 4,
         ("NAME THE", "COUNTRY"), ()),
     5: (COUNTRIES_5, "TGO", ("KGZ", "TUN", "BLR", "URY"), ("AUT", 14.5, 47.6, 0.6, "AUSTRIA"), 5,
-        ("HARDEST", "MAP QUIZ"), ()),
+        ("HARDEST", "MAP QUIZ"), (3,)),
 }  # ... intro title, countries followed by the "like this video" call-out
 EPISODE = 3
 COVER = EPISODES[3][3]
