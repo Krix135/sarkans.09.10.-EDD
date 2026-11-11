@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """"WOULD YOU RATHER? GAMING EDITION" Short (1080x1920), same format as the money edition.
 
-Eight gaming dilemmas on the red / blue split screen (GTA 6 early or free, skins or coins, Minecraft
+Seven gaming dilemmas on the red / blue split screen (GTA 6 early or free, never lag, Minecraft
 or GTA for a week...). The narrator reads each one, a 3-2-1 runs inside the OR badge on the beat,
 then a poll fills both cards and counts up to the split (made-up, "for fun" numbers, noted in the
 description) and the narrator says the result. Falling gaming-emoji
@@ -37,9 +37,6 @@ PURPLE = (190, 120, 255)
 QUESTIONS = [  # A text, A emoji, B text, B emoji, spoken question, pick, spoken result, fact, % who chose A
     ("Play GTA 6 a week before everyone", "🌴", "Get GTA 6 for free", "🎁",
      "Play GTA 6 a week before everyone, or get it for free?", None, "58 percent would play it early!", None, 58),
-    ("The rarest pirate skin in your favourite game", "🏴‍☠", "Unlimited in-game coins forever", "🪙",
-     "The rarest pirate skin in your favourite game, or unlimited coins forever?", None,
-     "81 percent took unlimited coins!", None, 19),
     ("Never lag again", "📶", "Never lose an online match", "🏆",
      "Never lag again, or never lose an online match?", None, "67 percent never want to lag again!", None, 67),
     ("Live inside Minecraft for a week", "⛏", "Live inside GTA 6 for a week", "🚔",
