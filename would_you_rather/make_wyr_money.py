@@ -270,7 +270,10 @@ class Intro(mv.Scene):
 class Question(mv.Scene):
     def __init__(self, idx, q, ui, tts):
         super().__init__()
-        a_txt, a_emo, b_txt, b_emo, spoken, pick, said, fact = q
+        a_txt, a_emo, b_txt, b_emo, spoken, pick, said, fact = q[:8]
+        self.poll = q[8] if len(q) > 8 else None          # optional "% chose A": shows a poll instead of MY PICK
+        if self.poll is not None:
+            pick = 0 if self.poll >= 50 else 1
         self.idx, self.ui, self.pick = idx, ui, pick
         self.final = idx == len(QUESTIONS)
         self.cta = idx == CTA_AFTER
@@ -299,6 +302,9 @@ class Question(mv.Scene):
         self.texts = [text_block(a_txt), text_block(b_txt)]
         self.dim = Image.new("RGBA", self.panels[0].size)
         ImageDraw.Draw(self.dim).rounded_rectangle((20, 20, 20 + PANEL_W, 20 + PANEL_H), 64, fill=(5, 0, 20, 150))
+        self.panel_mask = Image.new("L", self.panels[0].size)
+        ImageDraw.Draw(self.panel_mask).rounded_rectangle((20, 20, 20 + PANEL_W, 20 + PANEL_H), 64, fill=255)
+        self._pct = {}
         self.pick_stamp = stamp("MY PICK", (30, 170, 80), 92)
         self.decide = stamp("YOU DECIDE", PINK, 84, ang=-6)
         self.fact = fact_card(*fact) if fact else None
@@ -323,6 +329,9 @@ class Question(mv.Scene):
                         (self.reveal + 0.04, sfx_coins(), 0.8), (self.dur - 0.3, mv.sfx_whoosh(0.4), 0.6)]
         if self.fact:
             self.sounds.append((self.reveal + 0.45, mv.sfx_pop(), 0.8))
+        if self.poll is not None:
+            for k in range(12):                             # the percentages ticking up
+                self.sounds.append((self.reveal + 0.08 + k * 0.06, mv.sfx_click(), 0.35))
         if tts:
             self.voices.append((self.read[0], v_q))
             self.voices.append((self.reveal + 0.1, v_p))
@@ -381,8 +390,29 @@ class Question(mv.Scene):
             pi = scaled(p, s)
             cx, cy = W / 2 + dx, PANEL_Y[side]
             paste_center(im, pi, cx, cy)
+            pct = None
+            if self.poll is not None and rv > 0:            # poll bar sweeping across the panel
+                pct = self.poll if side == 0 else 100 - self.poll
+                kp = ease_out_cubic(clamp((rv - 0.05) / 0.8))
+                fill = Image.new("RGBA", self.panel_mask.size)
+                ImageDraw.Draw(fill).rectangle((20, 20, 20 + PANEL_W * pct / 100 * kp, 20 + PANEL_H),
+                                               fill=(255, 255, 255, 70))
+                fill.putalpha(Image.fromarray(np.minimum(np.asarray(fill.getchannel("A")),
+                                                         np.asarray(self.panel_mask))))
+                paste_center(im, scaled(fill, s), cx, cy)
             # emoji and text on the panel (emoji bounces on the beat, wiggles while read)
             ke = ease_out_back(clamp((t - 0.25 - side * 0.12) / 0.3), 2.0)
+            if pct is not None:                              # the emoji makes room for the percentage
+                ke *= 1 - clamp(rv / 0.15)
+                shown = int(round(pct * ease_out_cubic(clamp((rv - 0.05) / 0.8))))
+                key = (side, shown)
+                if key not in self._pct:
+                    win = side == self.pick
+                    self._pct[key] = rtext(f"{shown}%", 170 if win else 140, fill=GOLD if win else (255, 255, 255),
+                                           stroke=12)
+                kq = ease_out_back(clamp((rv - 0.04) / 0.25), 2.0)
+                paste_center(im, scaled(self._pct[key], kq * s * (1 + (0.04 * beat_pulse(T) if side == self.pick
+                                                                       else 0))), cx, cy - 110 * s)
             if ke > 0.01:
                 wig = 8 * math.sin(T * 14) if reading == side else 4 * math.sin(T * 3 + side)
                 paste_center(im, scaled(self.emos[side], ke * s * (1 + 0.07 * on_beat)).rotate(wig, Image.BICUBIC,
@@ -390,8 +420,8 @@ class Question(mv.Scene):
                              cx, cy - 120 * s)
             paste_center(im, scaled(self.texts[side], s), cx, cy + 150 * s)
             if rv > 0 and self.pick is not None and side != self.pick:
-                paste_center(im, scaled(self.dim, s), cx, cy, clamp(rv / 0.2))
-            if rv > 0 and side == self.pick:
+                paste_center(im, scaled(self.dim, s), cx, cy, clamp(rv / 0.2) * (0.6 if self.poll is not None else 1))
+            if rv > 0 and side == self.pick and self.poll is None:
                 ks = ease_out_back(clamp((rv - 0.05) / 0.25), 2.4)
                 if ks > 0.01:
                     paste_center(im, scaled(self.pick_stamp, 1.6 - 0.6 * ks), cx + 300, cy - 210, min(1.0, ks))

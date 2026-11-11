@@ -3,7 +3,8 @@
 
 Eight gaming dilemmas on the red / blue split screen (GTA 6 early or free, skins or coins, Minecraft
 or GTA for a week...). The narrator reads each one, a 3-2-1 runs inside the OR badge on the beat,
-then the narrator's pick gets a MY PICK stamp; the final one is YOU DECIDE. Falling gaming-emoji
+then a poll fills both cards and counts up to the split (made-up, "for fun" numbers, noted in the
+description) and the narrator says the result. Falling gaming-emoji
 backdrop, hook intro, one like call-out after question 3 and a looping ending. Only text and emojis:
 no game art, characters or logos.
 
@@ -33,25 +34,28 @@ from make_video import emoji, paste_center, scaled  # noqa: E402
 W, H = wm.W, wm.H
 PURPLE = (190, 120, 255)
 
-QUESTIONS = [  # A text, A emoji, B text, B emoji, spoken question, pick (0/1/None), spoken pick, fact
+QUESTIONS = [  # A text, A emoji, B text, B emoji, spoken question, pick, spoken result, fact, % who chose A
     ("Play GTA 6 a week before everyone", "🌴", "Get GTA 6 for free", "🎁",
-     "Play GTA 6 a week before everyone, or get it for free?", 0, "Play it early! Everyone's jealous!", None),
+     "Play GTA 6 a week before everyone, or get it for free?", None, "58 percent would play it early!", None, 58),
     ("The rarest pirate skin in your favourite game", "🏴‍☠", "Unlimited in-game coins forever", "🪙",
-     "The rarest pirate skin in your favourite game, or unlimited coins forever?", 1,
-     "Unlimited coins! Buy everything!", None),
+     "The rarest pirate skin in your favourite game, or unlimited coins forever?", None,
+     "81 percent took unlimited coins!", None, 19),
     ("Never lag again", "📶", "Never lose an online match", "🏆",
-     "Never lag again, or never lose an online match?", 0, "Never lag! Lag ruins everything!", None),
+     "Never lag again, or never lose an online match?", None, "67 percent never want to lag again!", None, 67),
     ("Live inside Minecraft for a week", "⛏", "Live inside GTA 6 for a week", "🚔",
-     "Live inside Minecraft for a week, or inside GTA 6 for a week?", 0, "Minecraft! Way safer!", None),
+     "Live inside Minecraft for a week, or inside GTA 6 for a week?", None, "62 percent would live in Minecraft!",
+     None, 62),
     ("A $5,000 gaming PC", "🖥", "Every console ever made", "🎮",
-     "A five thousand dollar gaming PC, or every console ever made?", 0, "The gaming PC!", None),
-    ("Unlimited Robux", "🧱", "Unlimited V-Bucks", "🪂", "Unlimited Robux, or unlimited V-Bucks?", 0, "Robux!",
-     None),
+     "A five thousand dollar gaming PC, or every console ever made?", None, "57 percent want the gaming PC!", None,
+     57),
+    ("Unlimited Robux", "🧱", "Unlimited V-Bucks", "🪂", "Unlimited Robux, or unlimited V-Bucks?", None,
+     "53 percent picked Robux!", None, 53),
     ("10 million subscribers", "📹", "Best player in the world, but nobody knows", "🥇",
-     "Ten million subscribers, or be the best player in the world, but nobody knows?", 0, "Ten million subs!", None),
+     "Ten million subscribers, or be the best player in the world, but nobody knows?", None,
+     "74 percent want the subscribers!", None, 74),
     ("Never play video games again + $1,000,000", "💰", "Every game free forever, but stay broke", "🎮",
      "Final one. Never play video games again and get a million dollars, or play every game free forever but "
-     "stay broke?", None, "Impossible! Comment your answer!", None),
+     "stay broke?", None, "Only 52 percent took the million! So close!", None, 52),
 ]
 INTRO_LINE = "Would you rather? Gaming edition! The last one is impossible!"
 CTA_LINE = wm.CTA_LINE
