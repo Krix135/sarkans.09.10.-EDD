@@ -16,6 +16,7 @@ Borders: Natural Earth 1:50m (public domain). Flags: public domain.
     python3 make_map_quiz_crazy.py --voice-pack voice_packs/map3_adam      # ElevenLabs Adam narrator
     python3 make_map_quiz_crazy.py --episode 4                             # easier episode, new countries
     python3 make_map_quiz_crazy.py --episode 5                             # hard again, new countries
+    python3 make_map_quiz_crazy.py --episode 6                             # part 3 formula, new countries
 """
 
 import argparse
@@ -116,12 +117,36 @@ COUNTRIES_5 = [  # episode 5: hard like episode 3, none of these were in episode
      "Bonus! Only one percent!", "Togo!", "👑"),
 ]
 
+COUNTRIES_6 = [  # episode 6: part 3 formula again, none of these were in episodes 1-5
+    ("CAN", "CA", "CANADA", "it has the longest coastline in the world", "🌊", "MEDIUM", "Name this country!",
+     "Canada!", "😎"),
+    ("POL", "PL", "POLAND", "Marie Curie was born here", "🔬", "MEDIUM", "Next!", "Poland!", "🔥"),
+    ("MAR", "MA", "MOROCCO", "home to the world's oldest running university", "🎓", "MEDIUM", "Too easy?",
+     "Morocco!", "🤔"),
+    ("VEN", "VE", "VENEZUELA", "Angel Falls, the world's tallest waterfall, is here", "💦", "HARD", "Hard level!",
+     "Venezuela!", "😳"),
+    ("NPL", "NP", "NEPAL", "its flag is the only one that isn't a rectangle", "🚩", "HARD", "Think fast!", "Nepal!",
+     "🤯"),
+    ("KEN", "KE", "KENYA", "the equator runs right through it", "🌍", "HARD", "Ooh, tricky!", "Kenya!", "🔥"),
+    ("HUN", "HU", "HUNGARY", "the Rubik's Cube was invented here", "🧊", "INSANE", "Insane level!", "Hungary!",
+     "😱"),
+    ("KHM", "KH", "CAMBODIA", "Angkor Wat is the largest religious monument on Earth", "🛕", "INSANE", "No way!",
+     "Cambodia!", "💀"),
+    ("ECU", "EC", "ECUADOR", "it's named after the equator", "📏", "INSANE", "Only geniuses!", "Ecuador!", "🧠"),
+    ("EST", "EE", "ESTONIA", "Skype was built by developers from here", "💻", "IMPOSSIBLE", "Impossible level!",
+     "Estonia!", "☠"),
+    ("DJI", "DJ", "DJIBOUTI", "Lake Assal here is the lowest point in Africa", "🏜", "BONUS",
+     "Bonus! Only one percent!", "Djibouti!", "👑"),
+]
+
 EPISODES = {  # countries, cold-open country, montage, cover (country, view lon/lat, zoom, tiles), file number
     3: (COUNTRIES, "GMB", ("CUB", "LAO", "HRV", "MWI"), ("HRV", 17.5, 44.5, 0.55, "CROATIA"), 3,
         ("HARDEST", "MAP QUIZ"), (3,)),
     4: (COUNTRIES_4, "LKA", ("IRL", "KOR", "ZAF", "NOR"), ("NOR", 15.0, 65.5, 1.25, "NORWAY"), 4,
         ("NAME THE", "COUNTRY"), ()),
     5: (COUNTRIES_5, "TGO", ("KGZ", "TUN", "BLR", "URY"), ("AUT", 14.5, 47.6, 0.6, "AUSTRIA"), 5,
+        ("HARDEST", "MAP QUIZ"), (3,)),
+    6: (COUNTRIES_6, "DJI", ("EST", "ECU", "KHM", "HUN"), ("HUN", 19.4, 47.2, 0.6, "HUNGARY"), 6,
         ("HARDEST", "MAP QUIZ"), (3,)),
 }  # ... intro title, countries followed by the "like this video" call-out
 EPISODE = 3
