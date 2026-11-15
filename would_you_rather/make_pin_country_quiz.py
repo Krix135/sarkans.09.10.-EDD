@@ -12,6 +12,12 @@ Borders: Natural Earth (public domain); flags: public domain.
     python3 make_pin_country_quiz.py
     python3 make_pin_country_quiz.py --stills 0,2,6
     python3 make_pin_country_quiz.py --cover
+    python3 make_pin_country_quiz.py --episode 2      # part 2: new countries and the full effects pack
+
+Part 2 effects: colour-lit countries, impact rings when pins land, rings and camera punches on every
+count beat, a red flash on the last count of danger levels, and on the drop a light beam and green
+shockwaves on the right pin, a spinning sunburst behind the answer stamp, and the wrong pins turning
+red with an X and falling off the map.
 """
 
 import argparse
@@ -34,6 +40,7 @@ import make_club_quiz as cq  # noqa: E402
 import make_map_quiz as mm  # noqa: E402
 import make_map_quiz_crazy as mc  # noqa: E402
 import make_minecraft_quiz as mq  # noqa: E402
+import make_missing_country_quiz as mcq  # noqa: E402
 import make_video as mv  # noqa: E402
 from make_map_quiz import CYAN, GOLD, INK, PINK, join, rfont, rtext  # noqa: E402
 from make_map_quiz_crazy import beat_pulse, glitch, rgb_split, sfx_heartbeat, shake  # noqa: E402
@@ -53,6 +60,7 @@ TIERS = mc.TIERS
 CTA_AFTER, CTA_LINE = (3,), mc.CTA_LINE
 FLAG_DIR = os.path.join(HERE, "flags")
 GREEN = (46, 204, 113)
+RED = (235, 60, 75)
 PIN_COLS = {"A": PINK, "B": CYAN, "C": GOLD, "D": (170, 110, 255)}
 
 # pin points (lon, lat), chosen well inside each country
@@ -68,6 +76,16 @@ POINTS = {
     "LVA": (24.8, 56.9), "EST": (25.5, 58.7), "LTU": (23.9, 55.3),
     "BFA": (-1.6, 12.3), "MLI": (-4.0, 17.5), "NER": (9.0, 17.0), "GHA": (-1.0, 7.9),
     "SWZ": (31.5, -26.5), "LSO": (28.2, -29.6), "BWA": (24.7, -22.3), "MOZ": (37.0, -15.0),
+    # part 2 (all checked to lie inside their country's Natural Earth outline)
+    "GRC": (22.0, 39.3), "ITA": (12.5, 42.8), "TUR": (35.0, 39.0), "BGR": (25.3, 42.7),
+    "JPN": (138.3, 36.2), "KOR": (127.9, 36.4), "CHN": (126.5, 45.7), "RUS": (137.0, 50.5),
+    "MEX": (-102.5, 23.9), "USA": (-99.0, 37.5), "GTM": (-90.3, 15.6), "CUB": (-79.0, 21.8),
+    "VNM": (105.8, 21.0), "VEN": (-66.0, 7.0), "ECU": (-78.4, -1.5),
+    "IRN": (54.0, 32.5), "IRQ": (43.7, 33.2), "AFG": (66.0, 33.9), "PAK": (69.4, 29.9),
+    "AUT": (14.5, 47.5), "ROU": (24.9, 45.9), "SVK": (19.5, 48.7),
+    "KGZ": (74.6, 41.4), "KAZ": (68.5, 47.0), "UZB": (64.5, 41.4), "TJK": (71.0, 38.9),
+    "MWI": (34.0, -13.3), "ZMB": (27.8, -13.5),
+    "BTN": (90.4, 27.4), "NPL": (84.1, 28.3), "BGD": (90.3, 23.8), "IND": (86.0, 25.0),
 }
 ROUNDS = [  # asked, flag, name, three decoys, fact, fact emoji, tier, sticker
     ("PRT", "PT", "PORTUGAL", ("ESP", "FRA", "MAR"), "the westernmost country of mainland Europe", "🧭", "EASY", "😎"),
@@ -87,8 +105,36 @@ ROUNDS = [  # asked, flag, name, three decoys, fact, fact emoji, tier, sticker
      "IMPOSSIBLE", "☠"),
     ("SWZ", "SZ", "ESWATINI", ("LSO", "BWA", "MOZ"), "it was called Swaziland until 2018", "📜", "BONUS", "👑"),
 ]
+ROUNDS_1 = ROUNDS
+ROUNDS_2 = [
+    ("GRC", "GR", "GREECE", ("ITA", "TUR", "BGR"), "the Olympic Games were born here", "🏅", "EASY", "😎"),
+    ("JPN", "JP", "JAPAN", ("KOR", "CHN", "RUS"), "home to the world's busiest train station", "🚆", "EASY", "🔥"),
+    ("MEX", "MX", "MEXICO", ("USA", "GTM", "CUB"), "the Chihuahua dog is named after a Mexican state", "🐕",
+     "EASY", "🤔"),
+    ("VNM", "VN", "VIETNAM", ("LAO", "KHM", "THA"), "the world's 2nd biggest coffee producer", "☕", "MEDIUM",
+     "😳"),
+    ("COL", "CO", "COLOMBIA", ("VEN", "ECU", "PER"), "the only South American country on 2 oceans", "🌊",
+     "MEDIUM", "🤯"),
+    ("IRN", "IR", "IRAN", ("IRQ", "AFG", "PAK"), "Persian cats come from here", "🐈", "MEDIUM", "🔥"),
+    ("HUN", "HU", "HUNGARY", ("AUT", "ROU", "SVK"), "the Rubik's Cube was invented here", "🧩", "HARD", "😱"),
+    ("ECU", "EC", "ECUADOR", ("COL", "PER", "BOL"), "it's named after the Equator", "🌐", "HARD", "💀"),
+    ("KGZ", "KG", "KYRGYZSTAN", ("KAZ", "UZB", "TJK"), "about 90% of it is mountains", "🏔", "INSANE", "🧠"),
+    ("MWI", "MW", "MALAWI", ("ZMB", "MOZ", "TZA"), "its lake has more fish species than any other lake", "🐟",
+     "IMPOSSIBLE", "☠"),
+    ("BTN", "BT", "BHUTAN", ("NPL", "BGD", "IND"), "it measures Gross National Happiness", "😊", "BONUS", "👑"),
+]
+EPISODES = {  # rounds, cold-open round, montage rounds, cover round, part number, file name, effects pack
+    1: (ROUNDS_1, 10, (8, 6, 9, 7), 6, None, "pin_country_quiz", False),
+    2: (ROUNDS_2, 10, (8, 6, 9, 7), 8, 2, "pin_country_quiz_2", True),
+}
+TEASE, MONTAGE, COVER, PART, NAME, FX = EPISODES[1][1:]
 INTRO_LINE = "Only one percent can find them all!"
 END_LINE = "How many did you get? Comment your score!"
+
+
+def set_episode(ep):
+    global ROUNDS, TEASE, MONTAGE, COVER, PART, NAME, FX
+    ROUNDS, TEASE, MONTAGE, COVER, PART, NAME, FX = EPISODES[ep]
 
 
 def fit(im, max_w=920):
@@ -129,9 +175,36 @@ def pin_sprite(letter, col, mark=None):
     if mark is None:
         t = rtext(letter, 66, fill=(255, 255, 255), stroke=6)
         paste_center(im, t, 65, 64)
+    elif mark == "X":                                   # bold white cross for a wrong pin
+        d = ImageDraw.Draw(im)
+        for (x0, y0, x1, y1) in ((41, 38, 89, 86), (41, 86, 89, 38)):
+            d.line((x0, y0, x1, y1), fill=INK + (255,), width=22)
+        for (x0, y0, x1, y1) in ((43, 40, 87, 84), (43, 84, 87, 40)):
+            d.line((x0, y0, x1, y1), fill=(255, 255, 255, 255), width=13)
     else:
         paste_center(im, emoji(mark, 60), 65, 62)
     return im
+
+
+def light_beam(w=180, h=1300, col=(150, 255, 190)):
+    x = np.linspace(-1, 1, w)[None, :]
+    y = np.linspace(0, 1, h)[:, None]
+    a = np.exp(-(x / 0.32) ** 2) * y ** 0.8 * 190
+    im = np.zeros((h, w, 4), np.uint8)
+    im[..., :3] = col
+    im[..., 3] = a.astype(np.uint8)
+    return Image.fromarray(im, "RGBA")
+
+
+def ring(im, x, y, r, col, a, width=7):
+    if a > 2:
+        ImageDraw.Draw(im, "RGBA").ellipse((x - r, y - r * 0.42, x + r, y + r * 0.42), outline=col + (int(a),),
+                                           width=width)
+
+
+def paint(ui, im, c, R, center, target=None, alpha=0.8, lift=0.0):
+    if FX:
+        ui["cmap"].draw(im, c, R, center, target, alpha, 0.0, lift=lift)
 
 
 def pin_shadow():
@@ -163,11 +236,10 @@ def question_card(name, flag):
 # scenes
 # ----------------------------------------------------------------------------
 class Intro(mv.Scene):
-    TEASE, MONTAGE = 10, (8, 6, 9, 7)
-
     def __init__(self, ui, tts):
         super().__init__()
         self.ui = ui
+        self.TEASE, self.MONTAGE = TEASE, MONTAGE
         self.dur = 6 * B
         self.t1, self.t2 = 1.5 * B, 3.5 * B
         self.views = {k: region_view([ROUNDS[k][0], *ROUNDS[k][3]]) for k in (self.TEASE, *self.MONTAGE)}
@@ -182,6 +254,9 @@ class Intro(mv.Scene):
         self.l1 = fit(join(rtext("PIN THE COUNTRY", 112, fill=PINK, stroke=11), emoji("📍", 104), gap=10), 940)
         self.l2 = fit(rtext("ON THE MAP", 140, stroke=13), 900)
         self.l3 = join(rtext("99% FAIL", 120, fill=GOLD, stroke=11), emoji("💀", 120))
+        self.part = mcq.part_badge(PART, 92) if PART else None
+        if PART:
+            self.sounds += [(self.t2 + 1.5 * B, mq.sfx_boom(), 0.8), (self.t2 + 1.5 * B, mv.sfx_pop(), 0.9)]
         rr = random.Random(5)
         self.drops = [(G.unit(rr.uniform(-60, 60), rr.uniform(-30, 50)), pin_sprite(L, PIN_COLS[L]), 0.5 * B * k)
                       for k, L in enumerate("ABCDABCD")]
@@ -214,6 +289,7 @@ class Intro(mv.Scene):
             c, R = self.views[self.TEASE]
             R *= 1.04 - 0.04 * ease_out_cubic(t / 0.3)
             im = g.render(c, R, GC)
+            paint(self.ui, im, c, R, GC)
             im.alpha_composite(self.ui["shade"])
             im.alpha_composite(self.ui["vig"][int(10 * (0.35 + 0.5 * beat_pulse(T)))])
             self.draw_pins(im, self.TEASE, c, R, T)
@@ -230,6 +306,7 @@ class Intro(mv.Scene):
             c, R = self.views[key]
             R *= 1.1 - 0.1 * ease_out_cubic(tc / 0.15)
             im = g.render(c, R, GC)
+            paint(self.ui, im, c, R, GC)
             im.alpha_composite(self.ui["shade"])
             self.draw_pins(im, key, c, R, T)
             s = 1 + 0.12 * (1 - ease_out_cubic((t - self.t1) / 0.15))
@@ -243,6 +320,7 @@ class Intro(mv.Scene):
         gc, R = (540, 1250), 480 * (1 + 0.05 * beat_pulse(T)) * (1.25 - 0.25 * ease_out_cubic(clamp(tg / 0.3)))
         c = G.unit(-20 + 50 * tg, 15)
         im = g.render(c, R, gc)
+        paint(self.ui, im, c, R, gc, alpha=0.75 + 0.2 * beat_pulse(T))
         im.alpha_composite(Image.new("RGBA", (W, H), (10, 0, 30, 50)))
         for p, spr, at in self.drops:
             td = tg - at
@@ -264,7 +342,10 @@ class Intro(mv.Scene):
                          W / 2, 490)
         if b >= 2:
             paste_center(im, scaled(self.l3, slam if b == 2 else 1.0), W / 2, 660)
-        im = shake(im, 22 * (1 - kk) if kk < 0.4 and b <= 2 else 0, t)
+        if self.part is not None and b >= 3:
+            paste_center(im, scaled(self.part, (slam if b == 3 else 1.0) * (1 + 0.04 * beat_pulse(T))).rotate(
+                -6, Image.BICUBIC, expand=True), W / 2, 850)
+        im = shake(im, 22 * (1 - kk) if (kk < 0.4 and (b <= 2 or (b == 3 and self.part is not None))) else 0, t)
         if tg < 0.08:
             im.alpha_composite(Image.new("RGBA", (W, H), (255, 255, 255, int(160 * (1 - tg / 0.08)))))
         whip = ease_in_cubic((t - (self.dur - 0.22)) / 0.22)
@@ -291,6 +372,7 @@ class Round(mv.Scene):
         codes = [code, *decoys]
         self.region = region_view(codes)
         self.cam = mm.Camera(prev_view, self.region, self.fly, self.reveal)
+        self.target = world.codes.index(code)
         cc, self.near, _ = world.country(code)
         self.country_c = cc
         self.country_R = G.zoom_for(world, cc, self.near, W, H, 0.34, 0.2)
@@ -305,6 +387,7 @@ class Round(mv.Scene):
         self.sprites = {L: pin_sprite(L, PIN_COLS[L]) for L in "ABCD"}
         self.right_sprite = pin_sprite(self.letter, GREEN, "✅")
         self.grey = {L: pin_sprite(L, (110, 110, 130)) for L in "ABCD"}
+        self.wrong = {L: pin_sprite(L, RED, "X") for L in "ABCD"}
         self.shadow = pin_shadow()
         self.flag = Image.open(os.path.join(FLAG_DIR, fcode + ".png")).convert("RGBA")
         self.cols = mm.flag_colours(self.flag)
@@ -348,6 +431,10 @@ class Round(mv.Scene):
         self.sounds += [(self.reveal, mq.sfx_boom(), 0.9), (self.reveal, mv.sfx_ding(), 1.0),
                         (self.reveal + 0.05, mq.sfx_pling(), 0.6), (self.reveal + 0.35, mv.sfx_whoosh(0.5), 0.6),
                         (self.dur - 0.3, mv.sfx_whoosh(0.4), 0.6)]
+        if FX:
+            self.sounds += [(self.reveal + 0.25, mv.sfx_whoosh(0.35), 0.5), (self.reveal + 0.02, mq.sfx_glitch(), 0.4)]
+            if self.danger:
+                self.sounds.append((self.count_beats[-1] * B, mq.sfx_boom(), 0.6))
         if tts:
             v = tts.say(f"Where is {name.title()}?", speed=1.18)
             self.voices.append((0.12, v))
@@ -380,11 +467,20 @@ class Round(mv.Scene):
         rv = t - self.reveal
         c, R, blur = self.camera(t)
         if t > self.fly and rv < 0:
-            R *= 1 + 0.02 * beat_pulse(T)
+            R *= 1 + (0.03 if FX else 0.02) * beat_pulse(T)
+        if FX and rv < 0:                                    # camera punch on every count beat
+            for b in self.count_beats:
+                tb = t - b * B
+                if 0 <= tb < 0.25:
+                    R *= 1 + (0.09 if self.danger else 0.06) * (1 - ease_out_cubic(tb / 0.25))
         hl = clamp((rv - 0.35) / 0.2) if rv > 0 else 0.0
         fa = clamp((rv - 0.5) / 0.3) if rv > 0 else 0.0
         lift = 22 * ease_out_back(clamp((rv - 0.6) / 0.3)) if rv > 0 else 0.0
         im = self.ui["globe"].render(c, R, GC, self.near, hl, self.flag, fa, lift=lift)
+        if hl > 0:
+            paint(self.ui, im, c, R, GC, self.target, 0.8 * (1 - 0.5 * clamp((rv - 0.35) / 0.4)), lift)
+        else:
+            paint(self.ui, im, c, R, GC)
         im = mm.zoom_blur(im, blur)
         im = rgb_split(im, 22 * blur)
         im.alpha_composite(self.ui["shade"])
@@ -402,6 +498,40 @@ class Round(mv.Scene):
                 continue
             fall = (1 - ease_out_back(clamp(td / 0.3), 2.0)) * 600
             right = L == self.letter
+            if FX:
+                tl = td - 0.2                                 # impact ring when the pin lands
+                if 0 < tl < 0.45:
+                    k = tl / 0.45
+                    ring(im, x, y, 18 + 120 * ease_out_cubic(k), PIN_COLS[L], 255 * (1 - k))
+                if rv <= 0:                                   # rings on every count beat
+                    for b in self.count_beats:
+                        tb = t - b * B
+                        if 0 <= tb < 0.4:
+                            ring(im, x, y, 20 + 90 * ease_out_cubic(tb / 0.4), (255, 255, 255), 200 * (1 - tb / 0.4), 5)
+                elif right:                                   # light beam + green shockwaves
+                    ba = clamp(rv / 0.05) * (1 - clamp(rv / 0.9))
+                    if ba > 0.01:
+                        paste_center(im, self.ui["beam"], x, y - 650, ba)
+                    for j in range(3):
+                        tl = rv - 0.09 * j
+                        if 0 < tl < 0.5:
+                            ring(im, x, y, 20 + 190 * ease_out_cubic(tl / 0.5), GREEN, 255 * (1 - tl / 0.5), 9)
+                else:                                         # wrong pins: red X, shake, fall off the map
+                    spr = self.wrong[L]
+                    if rv < 0.25:
+                        x += 14 * math.sin(rv * 70)
+                        sp = spr
+                    else:
+                        tf = rv - 0.25
+                        y += 2600 * tf * tf
+                        sp = spr.rotate((1 if i % 2 else -1) * 260 * tf, Image.BICUBIC, expand=True)
+                    a = 1 - clamp((rv - 0.3) / 0.5)
+                    if a > 0.01 and y < H + 200:
+                        if a < 1:
+                            sp = sp.copy()
+                            sp.putalpha(sp.getchannel("A").point(lambda v, a=a: int(v * a)))
+                        paste_center(im, sp, x, y - spr.height / 2)
+                    continue
             if rv > 0:
                 if right:
                     spr = self.right_sprite
@@ -438,6 +568,9 @@ class Round(mv.Scene):
             paste_center(im, scaled(self.card, kc * (1 + 0.015 * beat_pulse(T))), W / 2, CARD_Y)
         if rv > 0:
             ks = ease_out_back(clamp((rv - 0.05) / 0.25), 2.4)
+            if FX and ks > 0.01:                              # spinning sunburst behind the answer stamp
+                bs = self.ui["burst"].rotate(rv * 50, Image.BICUBIC)
+                paste_center(im, scaled(bs, min(1.2, ks)), W / 2 + 230, CARD_Y + 170, min(1.0, ks) * 0.9)
             if ks > 0.01:
                 paste_center(im, scaled(self.stamp, 1.6 - 0.6 * ks), W / 2 + 230, CARD_Y + 170, min(1.0, ks))
         if self.banner is not None and 0.05 < t < self.fly + 0.3:
@@ -479,8 +612,11 @@ class Round(mv.Scene):
             for b in self.count_beats:
                 tb = t - b * B
                 if 0 <= tb < 0.15:
-                    im = shake(im, 10 * (1 - tb / 0.15), t)
-                    im = rgb_split(im, 7 * (1 - tb / 0.15))
+                    im = shake(im, (14 if FX else 10) * (1 - tb / 0.15), t)
+                    im = rgb_split(im, (10 if FX else 7) * (1 - tb / 0.15))
+            tb = t - self.count_beats[-1] * B
+            if FX and self.danger and 0 <= tb < 0.2:          # red flash on the last count
+                im.alpha_composite(Image.new("RGBA", (W, H), (255, 30, 60, int(90 * (1 - tb / 0.2)))))
         if cta_on:
             ct = rv - self.cta_at
             k = ease_out_back(ct / 0.3, 2.0) * (1 - ease_in_cubic(clamp((t - (self.dur - 0.45)) / 0.25)))
@@ -509,6 +645,8 @@ def build(voice="am_adam", voice_pack=None):
     globe = G.GlobeRenderer(W, H, world)
     ui = {"globe": globe, "big_globe": globe, "shade": mm.shade_overlay(0.8),
           "vig": [mc.red_vignette(i / 10) for i in range(11)]}
+    if FX:
+        ui.update(cmap=mcq.ColourMap(world), beam=light_beam(), burst=mq.sunburst(560, GREEN))
     intro = Intro(ui, tts)
     scenes, view, prev = [intro], (G.unit(-20 + 50 * intro.dur * 0.36, 15), 600.0), ROUNDS[0][6]
     for i, r in enumerate(ROUNDS, 1):
@@ -525,11 +663,12 @@ def build(voice="am_adam", voice_pack=None):
 
 
 def make_cover(ui, path):
-    k = 6
+    k = COVER
     r = ROUNDS[k]
     codes = [r[0], *r[3]]
     c, R = region_view(codes)
     im = ui["globe"].render(c, R * 0.95, GC)
+    paint(ui, im, c, R * 0.95, GC, alpha=0.85)
     im.alpha_composite(mm.shade_overlay(0.9))
     xs = sorted((project(G.unit(*POINTS[q]), c, R * 0.95, GC)[0], q) for q in codes)
     sh = pin_shadow()
@@ -543,13 +682,16 @@ def make_cover(ui, path):
     flag = Image.open(os.path.join(FLAG_DIR, r[1] + ".png")).convert("RGBA")
     paste_center(im, question_card(r[2], flag), W / 2, 420)
     paste_center(im, join(rtext("99% FAIL", 96, fill=GOLD, stroke=9), emoji("💀", 98)), W / 2, 1720)
+    if PART:
+        paste_center(im, mcq.part_badge(PART, 80).rotate(-6, Image.BICUBIC, expand=True), W / 2, 1570)
     im.convert("RGB").save(path, quality=92)
     print(path)
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--out", default=os.path.join(HERE, "short_pin_country_quiz.mp4"))
+    ap.add_argument("--episode", type=int, default=1, choices=sorted(EPISODES))
+    ap.add_argument("--out", default=None)
     ap.add_argument("--stills", default=None)
     ap.add_argument("--cover", action="store_true")
     ap.add_argument("--voice", default="am_adam")
@@ -557,23 +699,25 @@ def main():
     ap.add_argument("--music", default="phonk", choices=["phonk", "none"])
     ap.add_argument("--workers", type=int, default=os.cpu_count() or 2)
     a = ap.parse_args()
+    set_episode(a.episode)
+    a.out = a.out or os.path.join(HERE, f"short_{NAME}.mp4")
     quiet = a.stills or a.cover
     scenes, starts, total, ui = build(a.voice if not quiet else "none", None if quiet else a.voice_pack)
     print(f"Duration {total:.1f}s ({total / B:.0f} beats)")
     if a.cover:
-        make_cover(ui, os.path.join(HERE, "pin_country_quiz_cover.jpg"))
+        make_cover(ui, os.path.join(HERE, f"{NAME}_cover.jpg"))
         return
     mv.G["scenes"], mv.G["starts"] = scenes, starts
     if a.stills:
         d = os.path.join(mv.CACHE_DIR, "stills")
         os.makedirs(d, exist_ok=True)
         for s in a.stills.split(","):
-            p = os.path.join(d, f"pin_{float(s):06.2f}.png")
+            p = os.path.join(d, f"pin{a.episode}_{float(s):06.2f}.png")
             mv.frame_at(int(float(s) * FPS)).save(p)
             print(p)
         return
     import make_movie_quiz as mmq
-    work = os.path.join(mv.CACHE_DIR, "render_pin")
+    work = os.path.join(mv.CACHE_DIR, f"render_{NAME}")
     os.makedirs(work, exist_ok=True)
     for f in os.listdir(work):
         os.remove(os.path.join(work, f))

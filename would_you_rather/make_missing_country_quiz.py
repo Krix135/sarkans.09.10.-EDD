@@ -133,25 +133,26 @@ class ColourMap:
 
     @staticmethod
     def colour_graph(world):
-        """Greedy map colouring so that neighbouring countries get different colours."""
+        """Greedy map colouring so that neighbouring countries get different colours. Two countries are
+        neighbours when their outlines come within about 30 km of each other (shared borders, narrow straits)."""
+        from scipy.spatial import cKDTree
         n = len(world.codes)
         own = np.repeat(np.asarray(world.owner), world.lens)
-        cen = np.zeros((n, 3))
-        np.add.at(cen, own, world.P)
-        cen /= np.maximum(np.linalg.norm(cen, axis=1, keepdims=True), 1e-9)
-        rad = np.zeros(n)
-        np.maximum.at(rad, own, np.arccos(np.clip(np.sum(world.P * cen[own], axis=1), -1, 1)))
-        ang = np.arccos(np.clip(cen @ cen.T, -1, 1))
-        near = ang < (rad[:, None] + rad[None, :]) * 1.02 + 0.01
+        nb = [set() for _ in range(n)]
+        for a, b in cKDTree(world.P).query_pairs(0.005, output_type="ndarray"):
+            if own[a] != own[b]:
+                nb[own[a]].add(own[b])
+                nb[own[b]].add(own[a])
         cols = [None] * n
-        for i in sorted(range(n), key=lambda k: -rad[k]):
-            used = {cols[j] for j in np.nonzero(near[i])[0] if cols[j] is not None and j != i}
+        for i in sorted(range(n), key=lambda k: -len(nb[k])):        # most neighbours first
+            used = {cols[j] for j in nb[i] if cols[j] is not None}
             free = [k for k in range(len(PALETTE)) if k not in used]
             cols[i] = free[(i * 7) % len(free)] if free else (i * 7) % len(PALETTE)
         return [PALETTE[k] for k in cols]
 
-    def draw(self, im, c, R, center, target=None, alpha=1.0, hole=1.0, pulse=0.0):
-        """Returns the target's screen centre (or None)."""
+    def draw(self, im, c, R, center, target=None, alpha=1.0, hole=1.0, pulse=0.0, lift=0.0):
+        """Returns the target's screen centre (or None). lift: also clear the target's area this many pixels
+        higher, where a lifted (popped-up) flag is drawn."""
         w = self.w
         SW, SH = int(W * SS), int(H * SS)
         east, up, view = G.frame_axes(c)
@@ -186,6 +187,8 @@ class ColourMap:
             centre = ((min(xs) + max(xs)) / 2 / SS, (min(ys) + max(ys)) / 2 / SS)
             for p in holes:     # always written: also clears a surrounding country's paint (Lesotho in South Africa)
                 d.polygon(p, fill=HOLE + (int(250 * hole),))
+                if lift > 0:
+                    d.polygon([(x, y - lift * SS) for x, y in p], fill=HOLE + (int(250 * hole),))
             if hole > 0.01:
                 for p in holes:                            # glowing edge that pulses on the beat
                     d.line(p + [p[0]], fill=CYAN + (int(90 * hole),), width=int((10 + 10 * pulse) * SS))
