@@ -12,6 +12,7 @@ domain.
     python3 make_missing_country_quiz.py
     python3 make_missing_country_quiz.py --stills 0,2,6
     python3 make_missing_country_quiz.py --cover
+    python3 make_missing_country_quiz.py --episode 2
 """
 
 import argparse
@@ -78,7 +79,44 @@ ROUNDS = [  # map code, flag, tiles, fact, fact emoji, tier, prompt, spoken answ
     ("MDA", "MD", "MOLDOVA", "home to the world's biggest wine collection", "🍷", "BONUS",
      "Bonus! Only one percent!", "Moldova!", "👑"),
 ]
+ROUNDS_1 = ROUNDS
+ROUNDS_2 = [
+    ("ITA", "IT", "ITALY", "pizza was invented here", "🍕", "EASY", "Which country is missing?", "Italy!", "😎"),
+    ("MEX", "MX", "MEXICO", "more Spanish speakers than any other country", "🗣", "EASY", "Next!", "Mexico!", "🔥"),
+    ("CHN", "CN", "CHINA", "the whole country uses just one time zone", "🕐", "EASY", "Too easy?", "China!", "🤔"),
+    ("POL", "PL", "POLAND", "Marie Curie was born here", "🧪", "MEDIUM", "Think fast!", "Poland!", "😳"),
+    ("ARG", "AR", "ARGENTINA", "home to the highest mountain outside Asia", "🏔", "MEDIUM", "Ooh, tricky!",
+     "Argentina!", "🤯"),
+    ("EGY", "EG", "EGYPT", "the last Ancient Wonder still standing is here", "🏛", "MEDIUM", "Next!", "Egypt!", "🔥"),
+    ("AUT", "AT", "AUSTRIA", "Mozart was born here", "🎻", "HARD", "Hard level!", "Austria!", "😱"),
+    ("PRY", "PY", "PARAGUAY", "1 of only 2 landlocked countries in South America", "🗺", "HARD", "No way!",
+     "Paraguay!", "💀"),
+    ("LAO", "LA", "LAOS", "the only landlocked country in Southeast Asia", "🐘", "INSANE", "Insane level!", "Laos!",
+     "🧠"),
+    ("BFA", "BF", "BURKINA FASO", "its name means \"land of honest people\"", "✨", "IMPOSSIBLE", "Impossible level!",
+     "Burkina Faso!", "☠"),
+    ("LSO", "LS", "LESOTHO", "it's completely surrounded by South Africa", "😮", "BONUS", "Bonus! Only one percent!",
+     "Lesotho!", "👑"),
+]
+EPISODES = {  # rounds, cold-open round, montage rounds, cover round, part number, file name
+    1: (ROUNDS_1, 10, (6, 7, 8, 9), 6, None, "missing_country_quiz"),
+    2: (ROUNDS_2, 10, (6, 7, 8, 9), 7, 2, "missing_country_quiz_2"),
+}
+TEASE, MONTAGE, COVER, PART, NAME = 10, (6, 7, 8, 9), 6, None, "missing_country_quiz"
 INTRO_LINE = "Only one percent can find them all!"
+
+
+def set_episode(ep):
+    global ROUNDS, TEASE, MONTAGE, COVER, PART, NAME
+    ROUNDS, TEASE, MONTAGE, COVER, PART, NAME = EPISODES[ep]
+
+
+def part_badge(n, size=64):
+    txt = rtext(f"PART {n}", size, fill=INK, stroke=0)
+    card = rounded_card(txt.width + int(size * 0.9), txt.height + int(size * 0.4), int(size * 0.4), PINK + (255,),
+                        outline=(255, 255, 255, 255), width=max(4, size // 12))
+    paste_center(card, txt, card.width / 2, card.height / 2)
+    return card
 END_LINE = "How many did you get? Comment your score!"
 
 
@@ -146,10 +184,10 @@ class ColourMap:
             xs = [x for p in holes for x, _ in p]
             ys = [y for p in holes for _, y in p]
             centre = ((min(xs) + max(xs)) / 2 / SS, (min(ys) + max(ys)) / 2 / SS)
+            for p in holes:     # always written: also clears a surrounding country's paint (Lesotho in South Africa)
+                d.polygon(p, fill=HOLE + (int(250 * hole),))
             if hole > 0.01:
-                for p in holes:
-                    d.polygon(p, fill=HOLE + (int(250 * hole),))
-                for p in holes:                              # glowing edge that pulses on the beat
+                for p in holes:                            # glowing edge that pulses on the beat
                     d.line(p + [p[0]], fill=CYAN + (int(90 * hole),), width=int((10 + 10 * pulse) * SS))
                     d.line(p + [p[0]], fill=(220, 250, 255, int(255 * hole)), width=int(3 * SS))
         im.alpha_composite(layer.resize((W, H), Image.BILINEAR))
@@ -176,10 +214,9 @@ def region_for(world, code):
 # scenes
 # ----------------------------------------------------------------------------
 class Intro(mv.Scene):
-    TEASE, MONTAGE = 10, (6, 7, 8, 9)
-
     def __init__(self, ui, tts):
         super().__init__()
+        self.TEASE, self.MONTAGE = TEASE, MONTAGE
         self.ui = ui
         self.dur = 6 * B
         self.t1, self.t2 = 1.5 * B, 3.5 * B
@@ -197,6 +234,9 @@ class Intro(mv.Scene):
         self.l1 = fit(rtext("WHICH COUNTRY", 128, fill=PINK, stroke=12), 940)
         self.l2 = fit(join(rtext("IS MISSING?", 140, stroke=13), emoji("🧩", 124), gap=14), 940)
         self.l3 = join(rtext("99% FAIL", 120, fill=GOLD, stroke=11), emoji("💀", 120))
+        self.part = part_badge(PART, 92) if PART else None
+        if PART:
+            self.sounds += [(self.t2 + 1.5 * B, mq.sfx_boom(), 0.8), (self.t2 + 1.5 * B, mv.sfx_pop(), 0.9)]
         self.sounds += [(0.0, mq.sfx_boom(), 1.0), (0.0, mv.sfx_whoosh(0.4), 0.6), (0.02, sfx_heartbeat(), 0.9),
                         (0.02, mq.sfx_glitch(), 0.5), (B, sfx_heartbeat(), 0.8), (B, mq.sfx_boom(), 0.5),
                         (self.t2, mq.sfx_boom(), 0.9), (self.t2, mv.sfx_whoosh(0.5), 0.6),
@@ -256,6 +296,9 @@ class Intro(mv.Scene):
                          W / 2, 490)
         if b >= 2:
             paste_center(im, scaled(self.l3, slam if b == 2 else 1.0), W / 2, 660)
+        if self.part is not None and b >= 3:
+            paste_center(im, scaled(self.part, (slam if b == 3 else 1.0) * (1 + 0.04 * beat_pulse(T))).rotate(
+                -6, Image.BICUBIC, expand=True), W / 2, 850)
         im = shake(im, 22 * (1 - kk) if kk < 0.4 and b <= 2 else 0, t)
         if tg < 0.08:
             im.alpha_composite(Image.new("RGBA", (W, H), (255, 255, 255, int(160 * (1 - tg / 0.08)))))
@@ -442,7 +485,7 @@ class Round(mv.Scene):
                                                                                  expand=True)
                 paste_center(card, th, 98, 98)
                 paste_center(im, scaled(card, k * (1 + 0.025 * beat_pulse(T))).rotate(-2, Image.BICUBIC,
-                                                                                     expand=True), W / 2, FACT_Y)
+                                                                                     expand=True), W / 2, FACT_Y + 55)
         if self.level_up and t < 0.35:
             im = glitch(im, 1 - t / 0.35, int(t * 30) + self.idx * 7)
         out = ease_in_cubic((t - (self.dur - 0.2)) / 0.2)
@@ -476,7 +519,7 @@ def build(voice="am_adam", voice_pack=None):
 
 
 def make_cover(ui, path):
-    k = 6
+    k = COVER
     world = ui["globe"].world
     c, _, R = region_for(world, ROUNDS[k][0])
     R *= 0.42
@@ -489,13 +532,16 @@ def make_cover(ui, path):
     paste_center(im, fit(join(rtext("ONLY 1% CAN FIND IT", 80, fill=PINK, stroke=8), emoji("😳", 80), gap=10), 960)
                  .rotate(-3, Image.BICUBIC, expand=True), W / 2, 220)
     paste_center(im, join(rtext("99% FAIL", 96, fill=GOLD, stroke=9), emoji("💀", 98)), W / 2, 1720)
+    if PART:
+        paste_center(im, part_badge(PART, 80).rotate(-6, Image.BICUBIC, expand=True), W / 2, 1560)
     im.convert("RGB").save(path, quality=92)
     print(path)
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--out", default=os.path.join(HERE, "short_missing_country_quiz.mp4"))
+    ap.add_argument("--episode", type=int, default=1, choices=sorted(EPISODES))
+    ap.add_argument("--out", default=None)
     ap.add_argument("--stills", default=None)
     ap.add_argument("--cover", action="store_true")
     ap.add_argument("--voice", default="am_adam")
@@ -503,23 +549,25 @@ def main():
     ap.add_argument("--music", default="phonk", choices=["phonk", "none"])
     ap.add_argument("--workers", type=int, default=os.cpu_count() or 2)
     a = ap.parse_args()
+    set_episode(a.episode)
+    a.out = a.out or os.path.join(HERE, f"short_{NAME}.mp4")
     quiet = a.stills or a.cover
     scenes, starts, total, ui = build(a.voice if not quiet else "none", None if quiet else a.voice_pack)
     print(f"Duration {total:.1f}s ({total / B:.0f} beats)")
     if a.cover:
-        make_cover(ui, os.path.join(HERE, "missing_country_quiz_cover.jpg"))
+        make_cover(ui, os.path.join(HERE, f"{NAME}_cover.jpg"))
         return
     mv.G["scenes"], mv.G["starts"] = scenes, starts
     if a.stills:
         d = os.path.join(mv.CACHE_DIR, "stills")
         os.makedirs(d, exist_ok=True)
         for s in a.stills.split(","):
-            p = os.path.join(d, f"missing_{float(s):06.2f}.png")
+            p = os.path.join(d, f"missing{a.episode}_{float(s):06.2f}.png")
             mv.frame_at(int(float(s) * FPS)).save(p)
             print(p)
         return
     import make_movie_quiz as mmq
-    work = os.path.join(mv.CACHE_DIR, "render_missing")
+    work = os.path.join(mv.CACHE_DIR, f"render_{NAME}")
     os.makedirs(work, exist_ok=True)
     for f in os.listdir(work):
         os.remove(os.path.join(work, f))
