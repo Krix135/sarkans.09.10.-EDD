@@ -89,7 +89,6 @@ ROUNDS = [  # A (shown, top), B (hidden, bottom), tier, spoken question, reactio
     ("CHN", "IND", "BONUS", "Bonus! Does India have more people than China?", "👑"),
 ]
 MAIN_ONLY = {"USA"}                  # frame and fill only the main landmass (not Alaska and Hawaii)
-INTRO_LINE = "Only one percent get them all!"
 
 
 def fit(im, max_w=920):
@@ -254,79 +253,95 @@ def draw_vs(im, ui, T, s=1.0, a=1.0):
 # scenes
 # ----------------------------------------------------------------------------
 class Intro(mv.Scene):
-    TEASE, MONTAGE = 10, (9, 8, 6, 7)
+    """6 beats. The narrator says the title and every word slams in as it is spoken: HIGHER (over the bonus
+    question, readable on frame one), OR LOWER? and POPULATION EDITION (each a hard cut to another match-up),
+    then the full title card with 99% FAIL over a spinning, colour-lit globe, and a whip into round 1."""
+    TEASE, MONTAGE = 10, (9, 8, 6)
+    WORDS = ("Higher!", "Or lower?", "Population edition!")
 
     def __init__(self, ui, tts):
         super().__init__()
         self.ui = ui
         self.dur = 6 * B
-        self.t1, self.t2 = 1.5 * B, 3.5 * B
-        self.o1 = fit(join(rtext("ONLY 1% GET 10/10", 92, fill=PINK, stroke=10), emoji("😳", 88), gap=10), 960)
-        self.o3 = join(rtext("answer at the end", 60, fill=GOLD, stroke=7), emoji("👀", 64))
-        self.m1 = fit(join(rtext("CAN YOU GET", 96, stroke=10), emoji("🤔", 90), gap=10), 960)
-        self.m2 = fit(rtext("ALL 10 RIGHT?", 104, fill=CYAN, stroke=10), 960)
+        hb = 0.5 * B
+        clips = [tts.say(w, speed=1.22) for w in self.WORDS] if tts else None
+        lens = [len(c) / SR for c in clips] if clips else [0.52, 0.68, 1.21]
+        self.slams = [0.0]                                   # each word starts on the nearest half beat
+        for ln in lens:
+            prev = self.slams[-1]
+            self.slams.append(max(prev + hb, round((prev + ln - 0.08) / hb) * hb))
+        self.slams[-1] = min(self.slams[-1], self.dur - 0.4)
+        self.cut2 = self.slams[2] + round((self.slams[3] - self.slams[2]) / 2 / hb) * hb   # extra cut mid-word
+        if clips:
+            for at, c in zip(self.slams, clips):
+                self.voices.append((at, c))
+        self.o1 = fit(join(rtext("ONLY 1% GET 10/10", 84, fill=PINK, stroke=9), emoji("😳", 80), gap=10), 940)
+        self.o3 = join(rtext("answer at the end", 58, fill=GOLD, stroke=7), emoji("👀", 62))
+        self.words = [fit(join(rtext("HIGHER", 170, fill=GREEN, stroke=15), emoji("📈", 140), gap=14), 980),
+                      fit(join(rtext("OR LOWER?", 150, fill=RED, stroke=14), emoji("📉", 124), gap=14), 980),
+                      fit(join(rtext("POPULATION", 116, fill=GOLD, stroke=11), emoji("👥", 104), gap=12), 980)]
+        self.word_y = (640, VS_Y, 1290)
+        self.ed = rtext("EDITION", 96, fill=(255, 255, 255), stroke=10)
         self.l1 = fit(join(rtext("HIGHER", 150, fill=GREEN, stroke=13), emoji("📈", 130), gap=14), 960)
         self.l2 = fit(join(rtext("OR LOWER?", 140, fill=RED, stroke=13), emoji("📉", 120), gap=14), 960)
         self.l3 = fit(join(rtext("POPULATION EDITION", 74, fill=GOLD, stroke=8), emoji("👥", 72), gap=10), 960)
         self.l4 = join(rtext("99% FAIL", 110, fill=(255, 255, 255), stroke=11), emoji("💀", 110))
-        self.sounds += [(0.0, mq.sfx_boom(), 1.0), (0.0, mv.sfx_whoosh(0.4), 0.6), (0.02, sfx_heartbeat(), 0.9),
-                        (0.02, mq.sfx_glitch(), 0.5), (B, sfx_heartbeat(), 0.8), (B, mq.sfx_boom(), 0.5),
-                        (self.t2, mq.sfx_boom(), 0.9), (self.t2, mv.sfx_whoosh(0.5), 0.6),
-                        (4.5 * B, mv.sfx_riser(1.5 * B), 0.7), (6 * B - 0.3, mv.sfx_whoosh(0.4), 0.9)]
-        for k in range(len(self.MONTAGE)):
-            at = self.t1 + k * 0.5 * B
-            self.sounds += [(at, mq.sfx_boom(), 0.45), (at, mq.sfx_glitch(), 0.35), (at, mv.sfx_click(), 0.7)]
-        for k in range(4):
-            self.sounds += [(self.t2 + k * 0.5 * B, mv.sfx_pop(), 0.8), (self.t2 + k * 0.5 * B, mq.sfx_boom(), 0.5)]
-        if tts:
-            self.voices.append((0.04, tts.say(INTRO_LINE, speed=1.15)))
+        self.sounds += [(0.0, sfx_heartbeat(), 0.9), (B, sfx_heartbeat(), 0.7),
+                        (self.slams[2], mv.sfx_riser(self.slams[3] - self.slams[2]), 0.6),
+                        (self.cut2, mq.sfx_boom(), 0.5), (self.cut2, mq.sfx_glitch(), 0.4), (self.cut2, mv.sfx_click(), 0.7),
+                        (self.dur - 0.3, mv.sfx_whoosh(0.4), 0.9)]
+        for k, at in enumerate(self.slams):
+            self.sounds += [(at, mq.sfx_boom(), 1.0 if k in (0, 3) else 0.75), (at, mv.sfx_whoosh(0.35), 0.6),
+                            (at, mv.sfx_pop(), 0.8)]
+            if k:
+                self.sounds.append((at, mq.sfx_glitch(), 0.45))
 
     def render(self, t):
         T = self.t0 + t
-        if t < self.t1:                                      # cold open: the bonus question, readable on frame one
-            im = self.ui["bg"].render(T, GOLD, strobe=0.3 * beat_pulse(T), rays=0.6)
-            im.alpha_composite(self.ui["vig"][int(10 * (0.35 + 0.5 * beat_pulse(T)))])
-            r = ROUNDS[self.TEASE]
+        k = max(i for i, at in enumerate(self.slams) if at <= t + 1e-9)
+        ts = t - self.slams[k]
+        slam = 1 + 0.35 * (1 - ease_out_cubic(clamp(ts / 0.18)))
+        if k < 3:                                            # word slams over the match-ups
+            second = k == 2 and t >= self.cut2
+            key = self.TEASE if k == 0 else self.MONTAGE[k - 1 + (1 if second else 0)]
+            tc = t - (self.cut2 if second else self.slams[k])
+            r = ROUNDS[key]
+            col = (GREEN, RED, GOLD)[k]
+            im = self.ui["bg"].render(T, col, strobe=1 - clamp(tc / 0.15), rays=0.8)
+            if k == 0:
+                im.alpha_composite(self.ui["vig"][int(10 * (0.35 + 0.5 * beat_pulse(T)))])
             draw_pair(im, self.ui, r[0], r[1], T)
-            draw_vs(im, self.ui, T)
-            s = 1 + 0.06 * (1 - ease_out_cubic(t / 0.2))
-            paste_center(im, scaled(self.o1, s).rotate(-3, Image.BICUBIC, expand=True), W / 2, 210)
+            if k == 0:                                       # the question on frame one, then words only
+                draw_vs(im, self.ui, T)
+            im.alpha_composite(Image.new("RGBA", (W, H), (10, 0, 30, 125)))
+            paste_center(im, scaled(self.o1, 1 + 0.03 * beat_pulse(T)).rotate(-3, Image.BICUBIC, expand=True), W / 2, 205)
             paste_center(im, self.o3, W / 2, 1720)
-            im = shake(im, 26 * (1 - t / 0.3) if t < 0.3 else 0, t)
-            return rgb_split(im, 8 * (1 - clamp(t / 0.25)))
-        if t < self.t2:                                      # rapid montage of match-ups
-            k = min(len(self.MONTAGE) - 1, int((t - self.t1) / (0.5 * B)))
-            tc = t - self.t1 - k * 0.5 * B
-            r = ROUNDS[self.MONTAGE[k]]
-            im = self.ui["bg"].render(T, TIERS[r[2]][0], strobe=1 - clamp(tc / 0.15), rays=0.8)
-            draw_pair(im, self.ui, r[0], r[1], T)
-            draw_vs(im, self.ui, T)
-            s = 1 + 0.12 * (1 - ease_out_cubic((t - self.t1) / 0.15))
-            paste_center(im, scaled(self.m1, s).rotate(-3, Image.BICUBIC, expand=True), W / 2, 170)
-            paste_center(im, scaled(self.m2, s).rotate(2, Image.BICUBIC, expand=True), W / 2, 285)
-            im = rgb_split(im, 18 * (1 - clamp(tc / 0.12)))
-            im = mm.zoom_blur(im, 0.6 * (1 - clamp(tc / 0.1)))
-            if tc < 0.06:
-                im.alpha_composite(Image.new("RGBA", (W, H), (255, 255, 255, 120)))
+            for j in range(k + 1):
+                sc = (slam if j == k else 1.0) * (1 + 0.025 * beat_pulse(T))
+                paste_center(im, scaled(self.words[j], sc).rotate((-3, 2, -2)[j], Image.BICUBIC, expand=True),
+                             W / 2, self.word_y[j])
+            if k == 2 and t > self.slams[2] + 0.5 * (self.slams[3] - self.slams[2]) - 0.05:
+                ke = ease_out_back(clamp((t - (self.slams[2] + 0.5 * (self.slams[3] - self.slams[2]) - 0.05)) / 0.2), 2.0)
+                paste_center(im, scaled(self.ed, max(0.01, ke)).rotate(2, Image.BICUBIC, expand=True), W / 2, 1420)
+            im = shake(im, 24 * (1 - ts / 0.3) if ts < 0.3 else 0, t)
+            im = rgb_split(im, (8 if k == 0 else 16) * (1 - clamp(tc / 0.15)))
+            if k > 0 or second:
+                im = mm.zoom_blur(im, 0.6 * (1 - clamp(tc / 0.1)))
+                if tc < 0.06:
+                    im.alpha_composite(Image.new("RGBA", (W, H), (255, 255, 255, 120)))
             return im
-        tg = t - self.t2                                     # titles over a spinning, colour-lit globe
-        gc = (540, 1270)
-        R = 470 * (1 + 0.05 * beat_pulse(T)) * (1.25 - 0.25 * ease_out_cubic(clamp(tg / 0.3)))
-        c = G.unit(30 + 50 * tg, 20)
+        gc = (540, 1270)                                     # the full title card over a colour-lit globe
+        R = 470 * (1 + 0.05 * beat_pulse(T)) * (1.25 - 0.25 * ease_out_cubic(clamp(ts / 0.3)))
+        c = G.unit(30 + 50 * t, 20)
         im = self.ui["big_globe"].render(c, R, gc)
         self.ui["cmap"].draw(im, c, R, gc, None, 0.75 + 0.2 * beat_pulse(T))
         im.alpha_composite(Image.new("RGBA", (W, H), (10, 0, 30, 40)))
-        b = int(tg / (0.5 * B))
-        kk = (tg % (0.5 * B)) / (0.5 * B)
-        slam = 1 + 0.35 * (1 - ease_out_cubic(kk / 0.4))
-        lines = [(self.l1, 300, -3), (self.l2, 470, 2), (self.l3, 625, -2), (self.l4, 760, 0)]
-        for j, (img, y, rot) in enumerate(lines):
-            if b >= j:
-                sc = (slam if b == j else 1.0) * (1 + 0.03 * beat_pulse(T))
-                paste_center(im, scaled(img, sc).rotate(rot, Image.BICUBIC, expand=True), W / 2, y)
-        im = shake(im, 22 * (1 - kk) if kk < 0.4 and b <= 3 else 0, t)
-        if tg < 0.08:
-            im.alpha_composite(Image.new("RGBA", (W, H), (255, 255, 255, int(160 * (1 - tg / 0.08)))))
+        for j, (img, y, rot) in enumerate([(self.l1, 300, -3), (self.l2, 470, 2), (self.l3, 625, -2), (self.l4, 760, 0)]):
+            sc = (slam if j == 3 else 1 + 0.12 * (1 - ease_out_cubic(clamp(ts / 0.18)))) * (1 + 0.03 * beat_pulse(T))
+            paste_center(im, scaled(img, sc).rotate(rot, Image.BICUBIC, expand=True), W / 2, y)
+        im = shake(im, 22 * (1 - ts / 0.3) if ts < 0.3 else 0, t)
+        if ts < 0.08:
+            im.alpha_composite(Image.new("RGBA", (W, H), (255, 255, 255, int(170 * (1 - ts / 0.08)))))
         whip = ease_in_cubic((t - (self.dur - 0.22)) / 0.22)
         if whip > 0:
             im = rgb_split(mm.zoom_blur(im, whip), 24 * whip)
