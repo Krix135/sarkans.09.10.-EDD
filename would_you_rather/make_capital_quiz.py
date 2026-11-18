@@ -16,6 +16,7 @@ Borders: Natural Earth (public domain). Flags: public domain.
     python3 make_capital_quiz.py
     python3 make_capital_quiz.py --stills 0,5,9
     python3 make_capital_quiz.py --cover
+    python3 make_capital_quiz.py --episode 2      # part 2: new countries and traps
 """
 
 import argparse
@@ -105,7 +106,62 @@ ROUNDS = [  # map code, flag, country, options A-D (grid order), answer, fact, e
     ("MMR", "MM", "MYANMAR", ("YANGON", "MANDALAY", "SITTWE", "NAYPYIDAW"), 3,
      "Yangon was the capital until 2005", "🏯", "BONUS", "Nay-pyi-daw!", "👑"),
 ]
+ROUNDS_1 = ROUNDS
+CITIES.update({
+    "SHANGHAI": (121.47, 31.23), "BEIJING": (116.40, 39.90), "XI'AN": (108.94, 34.34), "GUANGZHOU": (113.26, 23.13),
+    "MUMBAI": (72.88, 19.08), "KOLKATA": (88.36, 22.57), "NEW DELHI": (77.21, 28.61), "BANGALORE": (77.59, 12.97),
+    "TOKYO": (139.69, 35.69), "SAPPORO": (141.35, 43.06), "KYOTO": (135.77, 35.01), "HIROSHIMA": (132.46, 34.39),
+    "AUCKLAND": (174.76, -36.85), "CHRISTCHURCH": (172.64, -43.53), "QUEENSTOWN": (168.66, -45.03),
+    "WELLINGTON": (174.78, -41.29),
+    "HO CHI MINH CITY": (106.63, 10.82), "HANOI": (105.85, 21.03), "DA NANG": (108.22, 16.05),
+    "NHA TRANG": (109.19, 12.24),
+    "DUBAI": (55.27, 25.20), "AL AIN": (55.76, 24.21), "ABU DHABI": (54.37, 24.45), "RAS AL KHAIMAH": (55.94, 25.79),
+    "GUAYAQUIL": (-79.89, -2.19), "CUENCA": (-79.00, -2.90), "MANTA": (-80.72, -0.95), "QUITO": (-78.47, -0.18),
+    "RIYADH": (46.68, 24.71), "JEDDAH": (39.17, 21.54), "MECCA": (39.83, 21.42), "MEDINA": (39.61, 24.47),
+    "LUANG PRABANG": (102.13, 19.89), "PAKSE": (105.78, 15.12), "VIENTIANE": (102.63, 17.97),
+    "SAVANNAKHET": (104.75, 16.56),
+    "ABIDJAN": (-4.03, 5.36), "YAMOUSSOUKRO": (-5.28, 6.83), "BOUAKÉ": (-5.03, 7.69), "SAN-PÉDRO": (-6.64, 4.75),
+    "PARO": (89.41, 27.43), "PHUNTSHOLING": (89.39, 26.85), "JAKAR": (90.75, 27.55), "THIMPHU": (89.64, 27.47),
+})
+ROUNDS_2 = [
+    ("CHN", "CN", "CHINA", ("SHANGHAI", "BEIJING", "XI'AN", "GUANGZHOU"), 1,
+     "its name means \"northern capital\"", "🧭", "EASY", "Beijing! Not Shanghai!", "😎"),
+    ("IND", "IN", "INDIA", ("MUMBAI", "KOLKATA", "NEW DELHI", "BANGALORE"), 2,
+     "Kolkata was the capital until 1911", "📜", "EASY", "New Delhi! Not Mumbai!", "🔥"),
+    ("JPN", "JP", "JAPAN", ("TOKYO", "SAPPORO", "KYOTO", "HIROSHIMA"), 0,
+     "Kyoto was the capital for over 1,000 years", "⛩", "EASY", "Tokyo!", "🤔"),
+    ("NZL", "NZ", "NEW ZEALAND", ("AUCKLAND", "CHRISTCHURCH", "QUEENSTOWN", "WELLINGTON"), 3,
+     "it's the southernmost capital in the world", "🧭", "MEDIUM", "Wellington! Not Auckland!", "😳"),
+    ("VNM", "VN", "VIETNAM", ("HO CHI MINH CITY", "HANOI", "DA NANG", "NHA TRANG"), 1,
+     "Ho Chi Minh City used to be called Saigon", "🛵", "MEDIUM", "Hanoi! Not Ho Chee Min City!", "🤯"),
+    ("ARE", "AE", "THE UAE", ("DUBAI", "AL AIN", "ABU DHABI", "RAS AL KHAIMAH"), 2,
+     "Dubai is more famous, but Abu Dhabi is the capital", "🏙", "MEDIUM", "Abu Dhabi! Not Dubai!", "🔥"),
+    ("ECU", "EC", "ECUADOR", ("GUAYAQUIL", "CUENCA", "MANTA", "QUITO"), 3,
+     "it sits 2,850 m above sea level", "🏔", "HARD", "Quito! Not Guayaquil!", "😱"),
+    ("SAU", "SA", "SAUDI ARABIA", ("RIYADH", "JEDDAH", "MECCA", "MEDINA"), 0,
+     "Riyadh means \"the gardens\"", "🌴", "HARD", "Riyadh! Not Jeddah!", "💀"),
+    ("LAO", "LA", "LAOS", ("LUANG PRABANG", "PAKSE", "VIENTIANE", "SAVANNAKHET"), 2,
+     "Luang Prabang was the royal capital", "👑", "INSANE", "Vientiane!", "🧠"),
+    ("CIV", "CI", "IVORY COAST", ("ABIDJAN", "YAMOUSSOUKRO", "BOUAKÉ", "SAN-PÉDRO"), 1,
+     "Abidjan is bigger, but Yamoussoukro became the capital in 1983", "📜", "IMPOSSIBLE",
+     "Yam-oo-soo-kro! Not Ab-ih-jahn!", "☠"),
+    ("BTN", "BT", "BHUTAN", ("PARO", "PHUNTSHOLING", "JAKAR", "THIMPHU"), 3,
+     "Thimphu has no traffic lights", "🚦", "BONUS", "Tim-poo!", "👑"),
+]
+SPOKEN = {"THE USA": "the USA", "THE UAE": "the United Arab Emirates"}
+EPISODES = {  # rounds, part, file name, cover round, cover line, max zoom, intro phrases
+    1: (ROUNDS_1, None, "capital_quiz", 3, "99% SAY SYDNEY", 9000, ("Guess the capital!", "Only one percent",
+                                                                     "get them all!")),
+    2: (ROUNDS_2, 2, "capital_quiz_2", 5, "99% SAY DUBAI", 17000, ("Guess the capital!", "Part two!",
+                                                                   "Get them all!")),
+}
+PART, NAME, COVER, COVER_LINE, MAX_R, INTRO_WORDS = EPISODES[1][1:]
 END_LINE = "How many did you get? Comment your score!"
+
+
+def set_episode(ep):
+    global ROUNDS, PART, NAME, COVER, COVER_LINE, MAX_R, INTRO_WORDS
+    ROUNDS, PART, NAME, COVER, COVER_LINE, MAX_R, INTRO_WORDS = EPISODES[ep]
 
 
 def fit(im, max_w=920):
@@ -132,7 +188,7 @@ def city_view(world, code, names):
     cp = np.concatenate([world.P[world.starts[i]:world.starts[i] + world.lens[i]] for i in idx
                          if world.lens[i] >= 0.05 * big])
     r_country = min(430 / max(np.abs(cp @ east).max(), 1e-3), 330 / max(np.abs(cp @ up).max(), 1e-3))
-    return c, float(np.clip(min(r_cities, max(r_country, 66 / max(sep, 1e-4))), 600, 9000))
+    return c, float(np.clip(min(r_cities, max(r_country, 66 / max(sep, 1e-4))), 600, MAX_R))
 
 
 def project(p, c, R, center):
@@ -181,7 +237,16 @@ def question_card(name, flag):
     size = 100
     while rfont(size).getlength(name + "?") > 620 and size > 56:
         size -= 4
-    n = rtext(name + "?", size, fill=GOLD, stroke=9)
+    parts = (name + "?").replace("IV", "I\0V").split("\0")     # the I and V run together in this font
+    imgs = [rtext(x, size, fill=GOLD, stroke=9) for x in parts]
+    n = imgs[0]
+    for nxt in imgs[1:]:                                     # overlap the outline padding, keep a small gap
+        solid = [im_.getchannel("A").point(lambda v: 255 if v > 200 else 0).getbbox() for im_ in (n, nxt)]
+        ov = (n.width - solid[0][2]) + solid[1][0] + 18 - int(size * 0.07)   # outlines overlap
+        both = Image.new("RGBA", (n.width + nxt.width - ov, max(n.height, nxt.height)))
+        both.alpha_composite(n, (0, 0))
+        both.alpha_composite(nxt, (n.width - ov, 0))
+        n = both
     fl = flag.copy()
     fl.thumbnail((150, 100), Image.LANCZOS)
     fb = Image.new("RGBA", (fl.width + 10, fl.height + 10), (255, 255, 255, 255))
@@ -222,8 +287,14 @@ class Round(mv.Scene):
         self.cta = idx in CTA_AFTER
         f = FLY_BEATS
         self.fly = f * B
-        self.reveal = (f + (7 if self.bonus else 4)) * B
-        self.count_beats = list(range(f + 2, f + 7)) if self.bonus else [f + 1, f + 2, f + 3]
+        spoken_name = SPOKEN.get(cname, cname.title())
+        v_q = tts.say(("Bonus! " if self.bonus else "") + f"What's the capital of {spoken_name}?", speed=1.18) \
+            if tts else None
+        q_len = len(v_q) / SR if v_q is not None else 1.6
+        c0 = max(f + (2 if self.bonus else 1), math.ceil((0.12 + q_len - 0.1) / B))   # long questions wait
+        n = 5 if self.bonus else 3
+        self.count_beats = list(range(c0, c0 + n))
+        self.reveal = (c0 + n) * B
         self.dur = self.reveal + ((6 if self.bonus else 5) + (5 if self.cta else 0)) * B
         self.cta_at = 2.2 * B
         world = ui["globe"].world
@@ -290,11 +361,7 @@ class Round(mv.Scene):
                         (rv0 + 0.3, mq.sfx_boom(), 0.5), (rv0 + 0.45, mv.sfx_pop(), 0.7),
                         (self.dur - 0.3, mv.sfx_whoosh(0.4), 0.6)]
         if tts:
-            spoken_name = cname.title().replace("The Usa", "the USA")
-            v = tts.say(("Bonus! " if self.bonus else "") + f"What's the capital of {spoken_name}?", speed=1.18)
-            self.voices.append((0.12, v))
-            if 0.12 + len(v) / SR > self.count_beats[0] * B + 0.1:
-                print(f"warning: prompt {idx} runs into the countdown", flush=True)
+            self.voices.append((0.12, v_q))
             self.voices.append((self.reveal + 0.08, tts.say(said, speed=1.12)))
             if self.cta:
                 self.voices.append((self.reveal + self.cta_at, tts.say(CTA_LINE, speed=1.12)))
@@ -514,14 +581,13 @@ class Intro(mv.Scene):
     "get them all!" each a hard cut to another question, then the full title card with 99% FAIL over a
     spinning, colour-lit globe and a whip into round 1."""
     TEASE, MONTAGE = 10, (9, 8, 7)
-    WORDS = ("Guess the capital!", "Only one percent", "get them all!")
 
     def __init__(self, ui, tts, rounds):
         super().__init__()
         self.ui, self.rounds = ui, rounds
         self.dur = 6 * B
         hb = 0.5 * B
-        clips = [tts.say(w, speed=1.22) for w in self.WORDS] if tts else None
+        clips = [tts.say(w, speed=1.22) for w in INTRO_WORDS] if tts else None
         lens = [len(c) / SR for c in clips] if clips else [0.9, 0.75, 0.7]
         self.slams = [0.0]                                   # each phrase starts on the nearest half beat
         for ln in lens:
@@ -535,7 +601,9 @@ class Intro(mv.Scene):
         self.o3 = join(rtext("answer at the end", 58, fill=GOLD, stroke=7), emoji("👀", 62))
         self.w1 = fit(rtext("GUESS THE", 150, fill=(255, 255, 255), stroke=14), 980)
         self.w2 = fit(join(rtext("CAPITAL", 170, fill=GOLD, stroke=15), emoji("🏙", 140), gap=14), 980)
-        self.w3 = fit(rtext("ONLY 1%", 170, fill=PINK, stroke=15), 980)
+        self.w3 = mcq.part_badge(PART, 150).rotate(-4, Image.BICUBIC, expand=True) if PART else \
+            fit(rtext("ONLY 1%", 170, fill=PINK, stroke=15), 980)
+        self.part = mcq.part_badge(PART, 84) if PART else None
         self.w4 = fit(join(rtext("GET THEM ALL", 124, fill=CYAN, stroke=12), emoji("😳", 110), gap=12), 980)
         self.l1 = fit(rtext("GUESS THE", 130, stroke=12), 960)
         self.l2 = fit(join(rtext("CAPITAL CITY", 128, fill=GOLD, stroke=12), emoji("🏙", 112), gap=12), 980)
@@ -588,6 +656,9 @@ class Intro(mv.Scene):
         for j, (img, y, rot) in enumerate([(self.l1, 330, -3), (self.l2, 500, 2), (self.l3, 680, -2)]):
             sc = (slam if j == 2 else 1 + 0.12 * (1 - ease_out_cubic(clamp(ts / 0.18)))) * (1 + 0.03 * beat_pulse(T))
             paste_center(im, scaled(img, sc).rotate(rot, Image.BICUBIC, expand=True), W / 2, y)
+        if self.part is not None:
+            paste_center(im, scaled(self.part, slam * (1 + 0.04 * beat_pulse(T))).rotate(5, Image.BICUBIC, expand=True),
+                         W / 2, 830)
         im = shake(im, 22 * (1 - ts / 0.3) if ts < 0.3 else 0, t)
         if ts < 0.08:
             im.alpha_composite(Image.new("RGBA", (W, H), (255, 255, 255, int(170 * (1 - ts / 0.08)))))
@@ -623,18 +694,21 @@ def build(voice="am_adam", voice_pack=None):
 
 
 def make_cover(scenes, ui, path):
-    r = scenes[1 + 3]                                        # Australia: everyone says Sydney
+    r = scenes[1 + COVER]                                    # the famous-city trap (Sydney, Dubai)
     im = r.render(r.count_beats[0] * B + 0.43, header=False)   # between beats: no number, no glitch
     paste_center(im, fit(join(rtext("GUESS THE CAPITAL", 100, fill=PINK, stroke=10), emoji("🏙", 96), gap=10), 990)
                  .rotate(-3, Image.BICUBIC, expand=True), W / 2, 215)
-    paste_center(im, join(rtext("99% SAY SYDNEY", 92, fill=GOLD, stroke=9), emoji("💀", 92)), W / 2, 1765)
+    paste_center(im, join(rtext(COVER_LINE, 92, fill=GOLD, stroke=9), emoji("💀", 92)), W / 2, 1765)
+    if PART:
+        paste_center(im, mcq.part_badge(PART, 80).rotate(-5, Image.BICUBIC, expand=True), W / 2, 1335)
     im.convert("RGB").save(path, quality=92)
     print(path)
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--out", default=os.path.join(HERE, "short_capital_quiz.mp4"))
+    ap.add_argument("--episode", type=int, default=1, choices=sorted(EPISODES))
+    ap.add_argument("--out", default=None)
     ap.add_argument("--stills", default=None)
     ap.add_argument("--cover", action="store_true")
     ap.add_argument("--voice", default="am_adam")
@@ -642,23 +716,25 @@ def main():
     ap.add_argument("--music", default="phonk", choices=["phonk", "none"])
     ap.add_argument("--workers", type=int, default=os.cpu_count() or 2)
     a = ap.parse_args()
+    set_episode(a.episode)
+    a.out = a.out or os.path.join(HERE, f"short_{NAME}.mp4")
     quiet = a.stills or a.cover
     scenes, starts, total, ui = build(a.voice if not quiet else "none", None if quiet else a.voice_pack)
     print(f"Duration {total:.1f}s ({total / B:.0f} beats)")
     if a.cover:
-        make_cover(scenes, ui, os.path.join(HERE, "capital_quiz_cover.jpg"))
+        make_cover(scenes, ui, os.path.join(HERE, f"{NAME}_cover.jpg"))
         return
     mv.G["scenes"], mv.G["starts"] = scenes, starts
     if a.stills:
         d = os.path.join(mv.CACHE_DIR, "stills")
         os.makedirs(d, exist_ok=True)
         for s in a.stills.split(","):
-            p = os.path.join(d, f"cap_{float(s):06.2f}.png")
+            p = os.path.join(d, f"cap{a.episode}_{float(s):06.2f}.png")
             mv.frame_at(int(float(s) * FPS)).save(p)
             print(p)
         return
     import make_movie_quiz as mmq
-    work = os.path.join(mv.CACHE_DIR, "render_capital")
+    work = os.path.join(mv.CACHE_DIR, f"render_{NAME}")
     os.makedirs(work, exist_ok=True)
     for f in os.listdir(work):
         os.remove(os.path.join(work, f))
