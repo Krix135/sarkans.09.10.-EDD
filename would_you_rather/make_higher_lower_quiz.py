@@ -15,6 +15,7 @@ Borders: Natural Earth (public domain). Flags: public domain (RU and BD drawn fr
     python3 make_higher_lower_quiz.py
     python3 make_higher_lower_quiz.py --stills 0,5,9
     python3 make_higher_lower_quiz.py --cover
+    python3 make_higher_lower_quiz.py --episode 2      # part 2: new countries
 """
 
 import argparse
@@ -88,6 +89,41 @@ ROUNDS = [  # A (shown, top), B (hidden, bottom), tier, spoken question, reactio
     ("BGD", "RUS", "IMPOSSIBLE", "Russia! Higher, or lower?", "☠"),
     ("CHN", "IND", "BONUS", "Bonus! Does India have more people than China?", "👑"),
 ]
+ROUNDS_1 = ROUNDS
+POP.update({  # part 2, UN WPP 2024 (2025 estimates)
+    "MEX": ("MEXICO", "Mexico", 131.9, "MX"), "ESP": ("SPAIN", "Spain", 47.9, "ES"),
+    "IDN": ("INDONESIA", "Indonesia", 285.7, "ID"), "PER": ("PERU", "Peru", 34.6, "PE"),
+    "KOR": ("SOUTH KOREA", "South Korea", 51.7, "KR"), "ARG": ("ARGENTINA", "Argentina", 45.9, "AR"),
+    "COL": ("COLOMBIA", "Colombia", 53.4, "CO"), "ITA": ("ITALY", "Italy", 59.1, "IT"),
+    "ZAF": ("SOUTH AFRICA", "South Africa", 64.7, "ZA"), "AUS": ("AUSTRALIA", "Australia", 27.0, "AU"),
+    "MDG": ("MADAGASCAR", "Madagascar", 32.7, "MG"), "MNG": ("MONGOLIA", "Mongolia", 3.5, "MN"),
+    "NZL": ("NEW ZEALAND", "New Zealand", 5.3, "NZ"),
+})
+ROUNDS_2 = [
+    ("MEX", "ESP", "EASY", "Does Spain have more people than Mexico? Higher, or lower?", "😎"),
+    ("ESP", "IDN", "EASY", "Indonesia! Higher, or lower?", "🔥"),
+    ("IDN", "PER", "EASY", "Peru! Higher, or lower?", "🤔"),
+    ("PER", "KOR", "MEDIUM", "South Korea! Higher, or lower?", "😳"),
+    ("KOR", "ARG", "MEDIUM", "Argentina! Higher, or lower?", "🤯"),
+    ("ARG", "COL", "MEDIUM", "Colombia! Higher, or lower?", "🔥"),
+    ("COL", "ITA", "HARD", "Italy! Higher, or lower?", "😱"),
+    ("ITA", "ZAF", "HARD", "South Africa! Higher, or lower?", "💀"),
+    ("ZAF", "AUS", "INSANE", "Australia! Higher, or lower?", "🧠"),
+    ("AUS", "MDG", "IMPOSSIBLE", "Madagascar! Higher, or lower?", "☠"),
+    ("MNG", "NZL", "BONUS", "Bonus! Does New Zealand have more people than Mongolia?", "👑"),
+]
+EPISODES = {  # rounds, part, file name, cover round, intro phrases
+    1: (ROUNDS_1, None, "higher_lower_quiz", 9, ("Higher!", "Or lower?", "Population edition!")),
+    2: (ROUNDS_2, 2, "higher_lower_quiz_2", 9, ("Higher!", "Or lower?", "Part two!")),
+}
+PART, NAME, COVER, INTRO_WORDS = EPISODES[1][1:]
+
+
+def set_episode(ep):
+    global ROUNDS, PART, NAME, COVER, INTRO_WORDS
+    ROUNDS, PART, NAME, COVER, INTRO_WORDS = EPISODES[ep]
+
+
 MAIN_ONLY = {"USA"}                  # frame and fill only the main landmass (not Alaska and Hawaii)
 
 
@@ -101,21 +137,27 @@ def millions(code):
 
 def shown(m):
     """The number as it is written on screen (rounded)."""
-    return f"{m / 1000:.2f} BILLION" if m >= 1000 else f"{int(round(m))} MILLION"
+    if m >= 1000:
+        return f"{m / 1000:.2f} BILLION"
+    return f"{m:.1f} MILLION" if m < 10 else f"{int(round(m))} MILLION"
 
 
 def spoken(m):
-    return f"{m / 1000:.2f} billion" if m >= 1000 else f"{int(round(m))} million"
+    if m >= 1000:
+        return f"{m / 1000:.2f} billion"
+    return f"{m:.1f} million" if m < 10 else f"{int(round(m))} million"
 
 
 def gap_text(a, b):
     """How B compares with A, from the rounded numbers people see."""
-    ra, rb = (a, b) if a >= 1000 else (round(a), round(b))
+    ra, rb = (a, b) if a >= 1000 else ((round(a, 1), round(b, 1)) if max(a, b) < 10 else (round(a), round(b)))
     more = rb > ra
     ratio = max(ra, rb) / min(ra, rb)
     if ratio >= 1.3:
         return f"{ratio:.1f}x {'MORE' if more else 'FEWER'} PEOPLE"
-    return f"{abs(rb - ra):.0f} MILLION {'MORE' if more else 'FEWER'}"
+    d = abs(rb - ra)
+    return f"{d:.1f} MILLION {'MORE' if more else 'FEWER'}" if max(a, b) < 10 else \
+        f"{d:.0f} MILLION {'MORE' if more else 'FEWER'}"
 
 
 def view_for(world, code, fx=0.4, fy=0.36):
@@ -257,14 +299,13 @@ class Intro(mv.Scene):
     question, readable on frame one), OR LOWER? and POPULATION EDITION (each a hard cut to another match-up),
     then the full title card with 99% FAIL over a spinning, colour-lit globe, and a whip into round 1."""
     TEASE, MONTAGE = 10, (9, 8, 6)
-    WORDS = ("Higher!", "Or lower?", "Population edition!")
 
     def __init__(self, ui, tts):
         super().__init__()
         self.ui = ui
         self.dur = 6 * B
         hb = 0.5 * B
-        clips = [tts.say(w, speed=1.22) for w in self.WORDS] if tts else None
+        clips = [tts.say(w, speed=1.22) for w in INTRO_WORDS] if tts else None
         lens = [len(c) / SR for c in clips] if clips else [0.52, 0.68, 1.21]
         self.slams = [0.0]                                   # each word starts on the nearest half beat
         for ln in lens:
@@ -279,7 +320,9 @@ class Intro(mv.Scene):
         self.o3 = join(rtext("answer at the end", 58, fill=GOLD, stroke=7), emoji("👀", 62))
         self.words = [fit(join(rtext("HIGHER", 170, fill=GREEN, stroke=15), emoji("📈", 140), gap=14), 980),
                       fit(join(rtext("OR LOWER?", 150, fill=RED, stroke=14), emoji("📉", 124), gap=14), 980),
+                      mcq.part_badge(PART, 130) if PART else
                       fit(join(rtext("POPULATION", 116, fill=GOLD, stroke=11), emoji("👥", 104), gap=12), 980)]
+        self.part = mcq.part_badge(PART, 80) if PART else None
         self.word_y = (640, VS_Y, 1290)
         self.ed = rtext("EDITION", 96, fill=(255, 255, 255), stroke=10)
         self.l1 = fit(join(rtext("HIGHER", 150, fill=GREEN, stroke=13), emoji("📈", 130), gap=14), 960)
@@ -320,7 +363,7 @@ class Intro(mv.Scene):
                 sc = (slam if j == k else 1.0) * (1 + 0.025 * beat_pulse(T))
                 paste_center(im, scaled(self.words[j], sc).rotate((-3, 2, -2)[j], Image.BICUBIC, expand=True),
                              W / 2, self.word_y[j])
-            if k == 2 and t > self.slams[2] + 0.5 * (self.slams[3] - self.slams[2]) - 0.05:
+            if k == 2 and not PART and t > self.slams[2] + 0.5 * (self.slams[3] - self.slams[2]) - 0.05:
                 ke = ease_out_back(clamp((t - (self.slams[2] + 0.5 * (self.slams[3] - self.slams[2]) - 0.05)) / 0.2), 2.0)
                 paste_center(im, scaled(self.ed, max(0.01, ke)).rotate(2, Image.BICUBIC, expand=True), W / 2, 1420)
             im = shake(im, 24 * (1 - ts / 0.3) if ts < 0.3 else 0, t)
@@ -339,6 +382,9 @@ class Intro(mv.Scene):
         for j, (img, y, rot) in enumerate([(self.l1, 300, -3), (self.l2, 470, 2), (self.l3, 625, -2), (self.l4, 760, 0)]):
             sc = (slam if j == 3 else 1 + 0.12 * (1 - ease_out_cubic(clamp(ts / 0.18)))) * (1 + 0.03 * beat_pulse(T))
             paste_center(im, scaled(img, sc).rotate(rot, Image.BICUBIC, expand=True), W / 2, y)
+        if self.part is not None:
+            paste_center(im, scaled(self.part, slam * (1 + 0.04 * beat_pulse(T))).rotate(5, Image.BICUBIC, expand=True),
+                         W / 2, 900)
         im = shake(im, 22 * (1 - ts / 0.3) if ts < 0.3 else 0, t)
         if ts < 0.08:
             im.alpha_composite(Image.new("RGBA", (W, H), (255, 255, 255, int(170 * (1 - ts / 0.08)))))
@@ -665,20 +711,24 @@ def build(voice="am_adam", voice_pack=None):
 
 
 def make_cover(ui, path):
-    r = ROUNDS[9]                                            # Bangladesh vs Russia: the one nobody believes
+    r = ROUNDS[COVER]                                        # the match-up nobody believes
     im = ui["bg"].render(1.0, TIERS[r[2]][0], strobe=0.3, rays=0.8)
     draw_pair(im, ui, r[0], r[1], 0.0)
     draw_vs(im, ui, 0.0)
     paste_center(im, fit(join(rtext("HIGHER OR LOWER?", 104, fill=GOLD, stroke=10), emoji("👥", 100), gap=10), 980)
                  .rotate(-3, Image.BICUBIC, expand=True), W / 2, 200)
-    paste_center(im, join(rtext("99% FAIL", 100, fill=PINK, stroke=10), emoji("💀", 100)), W / 2, 1745)
+    fail = join(rtext("99% FAIL", 100, fill=PINK, stroke=10), emoji("💀", 100))
+    paste_center(im, fail, W / 2 - (110 if PART else 0), 1745)
+    if PART:
+        paste_center(im, mcq.part_badge(PART, 72).rotate(6, Image.BICUBIC, expand=True), W - 160, 1745)
     im.convert("RGB").save(path, quality=92)
     print(path)
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--out", default=os.path.join(HERE, "short_higher_lower_quiz.mp4"))
+    ap.add_argument("--episode", type=int, default=1, choices=sorted(EPISODES))
+    ap.add_argument("--out", default=None)
     ap.add_argument("--stills", default=None)
     ap.add_argument("--cover", action="store_true")
     ap.add_argument("--voice", default="am_adam")
@@ -686,23 +736,25 @@ def main():
     ap.add_argument("--music", default="phonk", choices=["phonk", "none"])
     ap.add_argument("--workers", type=int, default=os.cpu_count() or 2)
     a = ap.parse_args()
+    set_episode(a.episode)
+    a.out = a.out or os.path.join(HERE, f"short_{NAME}.mp4")
     quiet = a.stills or a.cover
     scenes, starts, total, ui = build(a.voice if not quiet else "none", None if quiet else a.voice_pack)
     print(f"Duration {total:.1f}s ({total / B:.0f} beats)")
     if a.cover:
-        make_cover(ui, os.path.join(HERE, "higher_lower_quiz_cover.jpg"))
+        make_cover(ui, os.path.join(HERE, f"{NAME}_cover.jpg"))
         return
     mv.G["scenes"], mv.G["starts"] = scenes, starts
     if a.stills:
         d = os.path.join(mv.CACHE_DIR, "stills")
         os.makedirs(d, exist_ok=True)
         for s in a.stills.split(","):
-            p = os.path.join(d, f"hl_{float(s):06.2f}.png")
+            p = os.path.join(d, f"hl{a.episode}_{float(s):06.2f}.png")
             mv.frame_at(int(float(s) * FPS)).save(p)
             print(p)
         return
     import make_movie_quiz as mmq
-    work = os.path.join(mv.CACHE_DIR, "render_higher_lower")
+    work = os.path.join(mv.CACHE_DIR, f"render_{NAME}")
     os.makedirs(work, exist_ok=True)
     for f in os.listdir(work):
         os.remove(os.path.join(work, f))
