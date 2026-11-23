@@ -13,6 +13,7 @@ domain.
     python3 make_missing_country_quiz.py --stills 0,2,6
     python3 make_missing_country_quiz.py --cover
     python3 make_missing_country_quiz.py --episode 2
+    python3 make_missing_country_quiz.py --episode 3
 """
 
 import argparse
@@ -98,9 +99,29 @@ ROUNDS_2 = [
     ("LSO", "LS", "LESOTHO", "it's completely surrounded by South Africa", "😮", "BONUS", "Bonus! Only one percent!",
      "Lesotho!", "👑"),
 ]
+ROUNDS_3 = [
+    ("ESP", "ES", "SPAIN", "it has the oldest restaurant in the world that's still open", "🍽", "EASY",
+     "Which country is missing?", "Spain!", "😎"),
+    ("TUR", "TR", "TURKEY", "tulips first came to Europe from here", "🌷", "EASY", "Next!", "Turkey!", "🔥"),
+    ("CAN", "CA", "CANADA", "it has about 60% of all the lakes in the world", "🌊", "EASY", "Too easy?", "Canada!",
+     "🤔"),
+    ("IRN", "IR", "IRAN", "it grows most of the world's saffron", "🌸", "MEDIUM", "Think fast!", "Iran!", "😳"),
+    ("PER", "PE", "PERU", "Machu Picchu is here", "🏔", "MEDIUM", "Ooh, tricky!", "Peru!", "🤯"),
+    ("UKR", "UA", "UKRAINE", "it's the biggest country that's entirely in Europe", "🗺", "MEDIUM", "Next!",
+     "Ukraine!", "🔥"),
+    ("ROU", "RO", "ROMANIA", "\"Dracula's castle\" is here", "🧛", "HARD", "Hard level!", "Romania!", "😱"),
+    ("KEN", "KE", "KENYA", "it's named after Mount Kenya", "🏔", "HARD", "No way!", "Kenya!", "💀"),
+    ("URY", "UY", "URUGUAY", "it won the very first World Cup, in 1930", "⚽", "INSANE", "Insane level!", "Uruguay!",
+     "🧠"),
+    ("MWI", "MW", "MALAWI", "its lake covers about a fifth of the country", "🐟", "IMPOSSIBLE", "Impossible level!",
+     "Malawi!", "☠"),
+    ("SWZ", "SZ", "ESWATINI", "it was called Swaziland until 2018", "👑", "BONUS", "Bonus! Only one percent!",
+     "Eswatini!", "👑"),
+]
 EPISODES = {  # rounds, cold-open round, montage rounds, cover round, part number, file name
     1: (ROUNDS_1, 10, (6, 7, 8, 9), 6, None, "missing_country_quiz"),
     2: (ROUNDS_2, 10, (6, 7, 8, 9), 7, 2, "missing_country_quiz_2"),
+    3: (ROUNDS_3, 10, (6, 7, 8, 9), 6, 3, "missing_country_quiz_3"),
 }
 TEASE, MONTAGE, COVER, PART, NAME = 10, (6, 7, 8, 9), 6, None, "missing_country_quiz"
 INTRO_LINE = "Only one percent can find them all!"
@@ -182,8 +203,11 @@ class ColourMap:
                 d.line(pts + [pts[0]], fill=(255, 255, 255, int(230 * alpha)), width=lw)
         centre = None
         if holes:
-            xs = [x for p in holes for x, _ in p]
-            ys = [y for p in holes for _, y in p]
+            def area(p):
+                x, y = np.array(p).T
+                return abs(np.dot(x, np.roll(y, 1)) - np.dot(y, np.roll(x, 1)))
+            main = max(holes, key=area)                      # the "?" goes on the main landmass, not islands
+            xs, ys = [x for x, _ in main], [y for _, y in main]
             centre = ((min(xs) + max(xs)) / 2 / SS, (min(ys) + max(ys)) / 2 / SS)
             for p in holes:     # always written: also clears a surrounding country's paint (Lesotho in South Africa)
                 d.polygon(p, fill=HOLE + (int(250 * hole),))
