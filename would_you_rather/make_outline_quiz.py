@@ -12,6 +12,7 @@ Borders: Natural Earth (public domain). Flags: public domain.
     python3 make_outline_quiz.py
     python3 make_outline_quiz.py --stills 0,5,9
     python3 make_outline_quiz.py --cover
+    python3 make_outline_quiz.py --episode 2      # part 2: new outlines
 """
 
 import argparse
@@ -78,7 +79,37 @@ ROUNDS = [  # map code, flag, name, fact, fact emoji, tier, prompt, spoken answe
     ("CZE", "CZ", "CZECHIA", "it has over 2,000 castles", "🏰", "BONUS", "Bonus! Only one percent!", "Czechia!",
      "👑"),
 ]
-INTRO_WORDS = ("Guess the country", "by its outline!", "Ninety-nine percent fail!")
+ROUNDS_1 = ROUNDS
+ROUNDS_2 = [  # none of these were in the earlier shape or outline videos
+    ("FRA", "FR", "FRANCE", "the Eiffel Tower was only meant to stand for 20 years", "🗼", "EASY",
+     "Name this country! Part two!", "France!", "😎"),
+    ("ESP", "ES", "SPAIN", "it makes almost half of the world's olive oil", "🫒", "EASY", "Next!", "Spain!", "🔥"),
+    ("EGY", "EG", "EGYPT", "about 95% of its people live along the Nile", "🌊", "EASY", "Too easy?", "Egypt!", "🤔"),
+    ("PER", "PE", "PERU", "it grows over 3,000 kinds of potato", "🥔", "MEDIUM", "Think fast!", "Peru!", "😳"),
+    ("SAU", "SA", "SAUDI ARABIA", "it has no permanent rivers at all", "🏜", "MEDIUM", "Ooh, tricky!",
+     "Saudi Arabia!", "🤯"),
+    ("UKR", "UA", "UKRAINE", "the world's biggest plane was built here", "✈", "MEDIUM", "Next!", "Ukraine!", "🔥"),
+    ("ISL", "IS", "ICELAND", "about a tenth of it is covered by glaciers", "🧊", "HARD", "Hard level!", "Iceland!",
+     "😱"),
+    ("KAZ", "KZ", "KAZAKHSTAN", "it's the biggest landlocked country in the world", "🗺", "HARD", "No way!",
+     "Kazakhstan!", "💀"),
+    ("PRY", "PY", "PARAGUAY", "its flag has a different design on each side", "🚩", "INSANE", "Insane level!",
+     "Paraguay!", "🧠"),
+    ("ZMB", "ZM", "ZAMBIA", "it's named after the Zambezi River", "🌊", "IMPOSSIBLE", "Impossible level!",
+     "Zambia!", "☠"),
+    ("PNG", "PG", "PAPUA NEW GUINEA", "over 800 languages are spoken here", "🗣", "BONUS", "Bonus! Only one percent!",
+     "Papua New Guinea!", "👑"),
+]
+EPISODES = {  # rounds, part, file name, cover round, intro phrases
+    1: (ROUNDS_1, None, "outline_quiz", 4, ("Guess the country", "by its outline!", "Ninety-nine percent fail!")),
+    2: (ROUNDS_2, 2, "outline_quiz_2", 6, ("Guess the country", "by its outline!", "Part two!")),
+}
+PART, NAME, COVER, INTRO_WORDS = EPISODES[1][1:]
+
+
+def set_episode(ep):
+    global ROUNDS, PART, NAME, COVER, INTRO_WORDS
+    ROUNDS, PART, NAME, COVER, INTRO_WORDS = EPISODES[ep]
 
 
 def fit(im, max_w=920):
@@ -135,7 +166,14 @@ class Outline:
         east, up, _ = G.frame_axes(c)
         areas = {i: area(i, east, up) for i in idx}
         big = max(areas.values())
-        self.keep = np.array([i for i in idx if areas[i] >= 0.025 * big])
+        main = max(areas, key=areas.get)                     # land near the main landmass only, so overseas
+        mp = world.P[world.starts[main]:world.starts[main] + world.lens[main]].mean(0)   # parts (French Guiana)
+        mp /= np.linalg.norm(mp)                                                          # don't count
+
+        def near(i):
+            q = world.P[world.starts[i]:world.starts[i] + world.lens[i]].mean(0)
+            return float(q @ mp) / np.linalg.norm(q) > math.cos(math.radians(20))
+        self.keep = np.array([i for i in idx if areas[i] >= 0.025 * big and near(i)])
         kp = np.concatenate([world.P[world.starts[i]:world.starts[i] + world.lens[i]] for i in self.keep])
         c = kp.mean(0)
         c /= np.linalg.norm(c)
@@ -496,7 +534,9 @@ class Intro(mv.Scene):
         self.o3 = join(rtext("answer at the end", 58, fill=GOLD, stroke=7), emoji("👀", 62))
         self.w1 = fit(rtext("GUESS THE COUNTRY", 128, stroke=12), 990)
         self.w2 = fit(join(rtext("BY ITS OUTLINE", 120, fill=CYAN, stroke=12), emoji("✏", 104), gap=12), 990)
-        self.w3 = join(rtext("99% FAIL", 150, fill=PINK, stroke=14), emoji("💀", 140))
+        self.w3 = mcq.part_badge(PART, 140).rotate(-4, Image.BICUBIC, expand=True) if PART else \
+            join(rtext("99% FAIL", 150, fill=PINK, stroke=14), emoji("💀", 140))
+        self.part = mcq.part_badge(PART, 84) if PART else None
         self.l1 = fit(rtext("GUESS THE COUNTRY", 112, stroke=11), 990)
         self.l2 = fit(join(rtext("BY ITS OUTLINE", 104, fill=CYAN, stroke=10), emoji("✏", 92), gap=12), 990)
         self.l3 = join(rtext("99% FAIL", 116, fill=PINK, stroke=11), emoji("💀", 112))
@@ -547,6 +587,9 @@ class Intro(mv.Scene):
         for j, (img, y, rot) in enumerate([(self.l1, 330, -3), (self.l2, 490, 2), (self.l3, 660, -2)]):
             sc = (slam if j == 2 else 1 + 0.12 * (1 - ease_out_cubic(clamp(ts / 0.18)))) * (1 + 0.03 * beat_pulse(T))
             paste_center(im, scaled(img, sc).rotate(rot, Image.BICUBIC, expand=True), W / 2, y)
+        if self.part is not None:
+            paste_center(im, scaled(self.part, slam * (1 + 0.04 * beat_pulse(T))).rotate(5, Image.BICUBIC, expand=True),
+                         W / 2, 830)
         im = shake(im, 22 * (1 - ts / 0.3) if ts < 0.3 else 0, t)
         if ts < 0.08:
             im.alpha_composite(Image.new("RGBA", (W, H), (255, 255, 255, int(170 * (1 - ts / 0.08)))))
@@ -581,7 +624,7 @@ def build(voice="am_adam", voice_pack=None):
 
 
 def make_cover(scenes, ui, path):
-    r = scenes[1 + 4]                                        # Vietnam: the S-shaped outline
+    r = scenes[1 + COVER]                                    # a striking outline (Vietnam, Iceland)
     im = ui["bg"].render(1.0, CYAN, 0.8)
     paste_center(im, scaled(r.ol.full, 1.05), r.ol.x0 + r.ol.w / 2, r.ol.y0 + r.ol.h / 2)
     paste_center(im, fit(rtext("GUESS THE COUNTRY", 112, stroke=11), 1000).rotate(-3, Image.BICUBIC, expand=True),
@@ -590,13 +633,16 @@ def make_cover(scenes, ui, path):
                  .rotate(2, Image.BICUBIC, expand=True), W / 2, 380)
     paste_center(im, rtext("?", 260, fill=(255, 255, 255), stroke=16), 760, 1000)
     paste_center(im, join(rtext("99% FAIL", 110, fill=PINK, stroke=11), emoji("💀", 110)), W / 2, 1700)
+    if PART:
+        paste_center(im, mcq.part_badge(PART, 80).rotate(-6, Image.BICUBIC, expand=True), W / 2, 1530)
     im.convert("RGB").save(path, quality=92)
     print(path)
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--out", default=os.path.join(HERE, "short_outline_quiz.mp4"))
+    ap.add_argument("--episode", type=int, default=1, choices=sorted(EPISODES))
+    ap.add_argument("--out", default=None)
     ap.add_argument("--stills", default=None)
     ap.add_argument("--cover", action="store_true")
     ap.add_argument("--voice", default="am_adam")
@@ -604,23 +650,25 @@ def main():
     ap.add_argument("--music", default="phonk", choices=["phonk", "none"])
     ap.add_argument("--workers", type=int, default=os.cpu_count() or 2)
     a = ap.parse_args()
+    set_episode(a.episode)
+    a.out = a.out or os.path.join(HERE, f"short_{NAME}.mp4")
     quiet = a.stills or a.cover
     scenes, starts, total, ui = build(a.voice if not quiet else "none", None if quiet else a.voice_pack)
     print(f"Duration {total:.1f}s ({total / B:.0f} beats)")
     if a.cover:
-        make_cover(scenes, ui, os.path.join(HERE, "outline_quiz_cover.jpg"))
+        make_cover(scenes, ui, os.path.join(HERE, f"{NAME}_cover.jpg"))
         return
     mv.G["scenes"], mv.G["starts"] = scenes, starts
     if a.stills:
         d = os.path.join(mv.CACHE_DIR, "stills")
         os.makedirs(d, exist_ok=True)
         for s in a.stills.split(","):
-            p = os.path.join(d, f"outline_{float(s):06.2f}.png")
+            p = os.path.join(d, f"outline{a.episode}_{float(s):06.2f}.png")
             mv.frame_at(int(float(s) * FPS)).save(p)
             print(p)
         return
     import make_movie_quiz as mmq
-    work = os.path.join(mv.CACHE_DIR, "render_outline")
+    work = os.path.join(mv.CACHE_DIR, f"render_{NAME}")
     os.makedirs(work, exist_ok=True)
     for f in os.listdir(work):
         os.remove(os.path.join(work, f))
