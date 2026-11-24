@@ -13,6 +13,7 @@ Borders: Natural Earth (public domain). Flags: public domain.
     python3 make_outline_quiz.py --stills 0,5,9
     python3 make_outline_quiz.py --cover
     python3 make_outline_quiz.py --episode 2      # part 2: new outlines
+    python3 make_outline_quiz.py --episode 2 --no-intro    # starts straight on round 1
 """
 
 import argparse
@@ -323,6 +324,7 @@ class Round(mv.Scene):
         self.nums = {k: rtext(str(k), 128, fill=PINK if k == 1 else (255, 255, 255), stroke=12) for k in range(1, n + 1)}
         self.streak = {k: join(rtext(f"x{k}", 46, fill=GOLD, stroke=5), emoji("🔥", 46), gap=6) for k in (idx - 1, idx)}
         self.tile_at = DRAW + 0.2
+        self.opener = None                                  # set on round 1 when there is no intro
         self.sounds += [(0.0, mv.sfx_whoosh(0.5), 0.8), (0.1, mv.sfx_riser(DRAW), 0.45),
                         (0.1 + DRAW, mv.sfx_pop(), 0.8), (0.1 + DRAW, mq.sfx_boom(), 0.5)]
         for k in range(8):                                   # the pen ticking along the border
@@ -440,7 +442,7 @@ class Round(mv.Scene):
                 sc = 1 + 0.5 * (1 - ease_out_cubic(rv / 0.25)) if 0 < rv < 0.25 else 1.0
                 stk = self.streak[nk]
                 paste_center(im, scaled(stk, sc), x1 - stk.width / 2 + 10, 288)
-        kc = ease_out_back(clamp((t - 0.05) / 0.3), 1.6)
+        kc = 1.0 if self.opener is not None else ease_out_back(clamp((t - 0.05) / 0.3), 1.6)
         if kc > 0.01:
             paste_center(im, scaled(ui["card"], kc * (1 + 0.015 * beat_pulse(T))), W / 2, CARD_Y)
         self.tiles.draw(im, t - self.tile_at, rv)
@@ -502,7 +504,13 @@ class Round(mv.Scene):
                                                                                      expand=True), W / 2, CTA_Y)
         if self.level_up and t < 0.35:
             im = glitch(im, 1 - t / 0.35, int(t * 30) + self.idx * 7)
-        if t < 0.16:
+        if self.opener is not None and t < self.count_beats[0] * B:   # no intro: PART badge on the first round
+            to = t
+            sk = 1 + 0.35 * (1 - ease_out_cubic(clamp(to / 0.18)))
+            a = 1 - clamp((t - (self.count_beats[0] * B - 0.3)) / 0.3)
+            paste_center(im, scaled(self.opener, sk * (1 + 0.04 * beat_pulse(T))).rotate(-5, Image.BICUBIC,
+                                                                                        expand=True), W / 2, 640, a)
+        if t < 0.16 and self.opener is None:
             im = rgb_split(mm.zoom_blur(im, 0.6 * (1 - t / 0.16)), 16 * (1 - t / 0.16))
         out = ease_in_cubic((t - (self.dur - 0.2)) / 0.2)
         if out > 0:
@@ -599,7 +607,7 @@ class Intro(mv.Scene):
         return im
 
 
-def build(voice="am_adam", voice_pack=None):
+def build(voice="am_adam", voice_pack=None, with_intro=True):
     if voice_pack:
         tts = cq.Voices(voice_pack.split(","))
     else:
@@ -613,8 +621,15 @@ def build(voice="am_adam", voice_pack=None):
     for i, r in enumerate(ROUNDS, 1):
         rounds.append(Round(i, r, prev, ui, tts))
         prev = r[5]
-    intro = Intro(ui, tts, rounds)
-    scenes = [intro, *rounds, bq.Ending(ui, intro, tts)]
+    if with_intro:
+        intro = Intro(ui, tts, rounds)
+        scenes = [intro, *rounds, bq.Ending(ui, intro, tts)]
+    else:                                                   # round 1 opens the video; the ending loops back to it
+        first = rounds[0]
+        first.opener = mcq.part_badge(PART, 96) if PART else join(rtext("99% FAIL", 96, fill=PINK, stroke=10),
+                                                                  emoji("💀", 96))
+        first.sounds += [(0.0, mq.sfx_boom(), 1.0), (0.0, mv.sfx_pop(), 0.8)]
+        scenes = [*rounds, bq.Ending(ui, first, tts)]
     starts, t = [], 0.0
     for sc in scenes:
         sc.t0 = t
@@ -648,12 +663,14 @@ def main():
     ap.add_argument("--voice", default="am_adam")
     ap.add_argument("--voice-pack", default=None, help="comma-separated voice pack folders (lines.txt + 00.wav...)")
     ap.add_argument("--music", default="phonk", choices=["phonk", "none"])
+    ap.add_argument("--no-intro", action="store_true", help="start straight on round 1")
     ap.add_argument("--workers", type=int, default=os.cpu_count() or 2)
     a = ap.parse_args()
     set_episode(a.episode)
     a.out = a.out or os.path.join(HERE, f"short_{NAME}.mp4")
     quiet = a.stills or a.cover
-    scenes, starts, total, ui = build(a.voice if not quiet else "none", None if quiet else a.voice_pack)
+    scenes, starts, total, ui = build(a.voice if not quiet else "none", None if quiet else a.voice_pack,
+                                      with_intro=not a.no_intro)
     print(f"Duration {total:.1f}s ({total / B:.0f} beats)")
     if a.cover:
         make_cover(scenes, ui, os.path.join(HERE, f"{NAME}_cover.jpg"))
