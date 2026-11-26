@@ -100,7 +100,7 @@ ROUNDS = [  # photo, landmark, emoji, map code, flag, country, (lon, lat), focus
      "it's on Cambodia's flag!", "🚩", "BONUS", "Bonus! Only one percent!", "Angkor Wat!", "Cambodia!", "👑",
      None),
 ]
-INTRO_WORDS = ("Guess the country", "by its landmark!", "Ninety-nine percent fail!")
+INTRO_WORDS = ("Guess the country", "from a blurry photo!", "Only one percent get all ten!")
 BG_CACHE = {}
 
 
@@ -585,79 +585,127 @@ class Round(mv.Scene):
 # intro: the title, said and slammed in word by word over pixelated landmarks, then the title card
 # ----------------------------------------------------------------------------
 class Intro(mv.Scene):
-    SHOW = (10, 8, 9)
+    """8 beats that show the game before explaining it. Frame one is already a question: the bonus landmark,
+    pixelated in the viewfinder, under GUESS THE COUNTRY / FROM A BLURRY PHOTO (each line slams in as the
+    narrator says it) with "answer at the end" below. It ENHANCES twice so viewers see how it works, then a
+    fast montage of four more blurry landmarks under ONLY 1% GET 10/10, then CAN YOU? over the globe with
+    polaroids bursting out, and a whip into round 1."""
+    HOOK, MONTAGE = 10, (9, 6, 3, 1)
 
     def __init__(self, ui, tts, rounds):
         super().__init__()
         self.ui, self.rounds = ui, rounds
-        self.dur = 6 * B
+        self.dur = 8 * B
         hb = 0.5 * B
-        clips = [tts.say(w, speed=1.24) for w in INTRO_WORDS] if tts else None
-        lens = [len(c) / SR for c in clips] if clips else [0.75, 0.85, 1.0]
+        clips = [tts.say(w, speed=1.25) for w in INTRO_WORDS] if tts else None
+        lens = [len(c) / SR for c in clips] if clips else [0.8, 1.0, 1.45]
         self.slams = [0.0]
-        for ln in lens:
-            prev = self.slams[-1]
-            self.slams.append(max(prev + hb, round((prev + ln - 0.08) / hb) * hb))
-        self.slams[-1] = min(self.slams[-1], self.dur - 0.4)
+        for ln in lens[:2]:                                  # each phrase starts on the next half beat after
+            prev = self.slams[-1]                            # the previous one ends, so they never overlap
+            self.slams.append(max(prev + hb, math.ceil((prev + ln - 0.04) / hb - 1e-6) * hb))
+        self.slams.append(self.dur - 0.75)                   # CAN YOU? slams in for the last 0.75 s
         if clips:
             for at, c in zip(self.slams, clips):
                 self.voices.append((at, c))
-        self.o3 = join(rtext("answer at the end", 58, fill=GOLD, stroke=7), emoji("👀", 62))
-        self.w1 = fit(rtext("GUESS THE COUNTRY", 130, stroke=12), 990)
-        self.w2 = fit(join(rtext("BY ITS LANDMARK", 116, fill=GOLD, stroke=11), emoji("🗼", 104), gap=12), 990)
-        self.w3 = join(rtext("99% FAIL", 150, fill=PINK, stroke=14), emoji("💀", 140))
+        s0, s1, s2, s3 = self.slams
+        self.steps = [s1, s1 + max(hb, (s2 - s1) / 2)]       # two ENHANCE steps while the hook is explained
+        self.cut = (s3 - s2) / len(self.MONTAGE)
+        self.c1 = fit(rtext("GUESS THE COUNTRY", 112, stroke=11), 900)
+        self.c2 = fit(join(rtext("FROM A BLURRY PHOTO", 96, fill=GOLD, stroke=10), emoji("🔍", 88), gap=12), 900)
+        self.c3 = fit(join(rtext("ONLY 1% GET 10/10", 112, fill=PINK, stroke=11), emoji("💀", 104), gap=12), 900)
+        self.c4 = fit(rtext("10 FAMOUS LANDMARKS", 70, fill=(255, 255, 255), stroke=8), 1000)
+        self.o3 = join(rtext("answer at the end", 60, fill=GOLD, stroke=7), emoji("👀", 64))
         self.l1 = fit(rtext("GUESS THE COUNTRY", 112, stroke=11), 990)
         self.l2 = fit(join(rtext("BY ITS LANDMARK", 100, fill=GOLD, stroke=10), emoji("🗼", 90), gap=12), 990)
-        self.l3 = join(rtext("99% FAIL", 116, fill=PINK, stroke=11), emoji("💀", 112))
+        self.l3 = join(rtext("CAN YOU?", 170, fill=PINK, stroke=15), emoji("👀", 150), gap=14)
         self.minis = [scaled(r.polaroid, 0.24).rotate(random.Random(i).uniform(-12, 12), Image.BICUBIC, expand=True)
                       for i, r in enumerate(rounds[:8])]
-        self.sounds += [(0.0, sfx_heartbeat(), 0.8), (0.0, sfx_shutter(), 0.8),
-                        (self.slams[2], mv.sfx_riser(self.slams[3] - self.slams[2]), 0.6),
-                        (self.dur - 0.3, mv.sfx_whoosh(0.4), 0.9)]
-        for k, at in enumerate(self.slams):
-            self.sounds += [(at, mq.sfx_boom(), 1.0 if k in (0, 3) else 0.75), (at, mv.sfx_whoosh(0.35), 0.6),
-                            (at, mv.sfx_pop(), 0.8)]
-            if k:
-                self.sounds += [(at, mq.sfx_glitch(), 0.45), (at, sfx_shutter(), 0.6)]
+        self.sounds += [(0.0, mq.sfx_boom(), 1.0), (0.0, sfx_shutter(), 0.9), (0.02, sfx_heartbeat(), 0.8),
+                        (s1, mq.sfx_boom(), 0.7), (s1, mv.sfx_pop(), 0.7),
+                        (s2, mq.sfx_boom(), 0.9), (s2, mq.sfx_glitch(), 0.5),
+                        (s3 - 0.9, mv.sfx_riser(0.9), 0.6), (s3, mq.sfx_boom(), 1.0), (s3, mv.sfx_whoosh(0.4), 0.7),
+                        (s3 + 0.02, mq.sfx_pling(), 0.6), (self.dur - 0.3, mv.sfx_whoosh(0.4), 0.9)]
+        for at in self.steps:
+            self.sounds += [(at, sfx_enhance(), 0.6), (at, mq.sfx_tock(), 0.6)]
+        for j in range(len(self.MONTAGE)):
+            at = s2 + j * self.cut
+            self.sounds += [(at, sfx_shutter(), 0.7), (at, mv.sfx_click(), 0.6)]
+
+    def card_frame(self, r, step, since):
+        """The round's viewfinder card at a given ENHANCE step (since = time since that step began)."""
+        tv = (r.count_beats[step - 1] * B + since) if step > 0 else 0.6 + since
+        return r.card_image(tv, -1)
 
     def render(self, t):
         T = self.t0 + t
-        k = max(i for i, at in enumerate(self.slams) if at <= t + 1e-9)
-        ts = t - self.slams[k]
-        slam = 1 + 0.35 * (1 - ease_out_cubic(clamp(ts / 0.18)))
-        if k < 3:                                            # word slams over pixelated landmarks
-            r = self.rounds[self.SHOW[k]]
-            im = r.render(r.count_beats[0] * B - 0.1)
-            im.alpha_composite(Image.new("RGBA", (W, H), (10, 0, 30, 120)))
-            words = [(self.w1, 820, -3), (self.w2, 990, 2), (self.w3, 1190, -2)]
-            for j in range(k + 1):
-                img, y, rot = words[j]
-                sc = (slam if j == k else 1.0) * (1 + 0.025 * beat_pulse(T))
-                paste_center(im, scaled(img, sc).rotate(rot, Image.BICUBIC, expand=True), W / 2, y)
-            paste_center(im, self.o3, W / 2, 1745)
-            im = shake(im, 24 * (1 - ts / 0.3) if ts < 0.3 else 0, t)
-            im = rgb_split(im, (8 if k == 0 else 16) * (1 - clamp(ts / 0.15)))
-            if k > 0:
-                im = mm.zoom_blur(im, 0.6 * (1 - clamp(ts / 0.1)))
-                if ts < 0.06:
-                    im.alpha_composite(Image.new("RGBA", (W, H), (255, 255, 255, 140)))
+        s0, s1, s2, s3 = self.slams
+        slam_at = max(at for at in self.slams if at <= t + 1e-9)
+        ts = t - slam_at
+        slam = 1 + (0.12 if slam_at == 0 else 0.3) * (1 - ease_out_cubic(clamp(ts / 0.18)))
+        if t < s3:
+            if t < s2:                                       # the hook: one blurry landmark, enhancing
+                r = self.rounds[self.HOOK]
+                step = sum(1 for at in self.steps if t >= at)
+                since = t - (self.steps[step - 1] if step else 0.0)
+                cut_t = 0.0
+            else:                                            # montage: four more blurry landmarks
+                j = min(len(self.MONTAGE) - 1, int((t - s2) / self.cut))
+                r = self.rounds[self.MONTAGE[j]]
+                step, since = 1, 0.3
+                cut_t = t - s2 - j * self.cut
+            im = r.background(T).copy()
+            card = self.card_frame(r, step, since)
+            s = (1.12 - 0.12 * ease_out_cubic(clamp(t / 0.15))) if t < s2 else (1.08 - 0.08 * ease_out_cubic(
+                clamp(cut_t / 0.12)))
+            for at in self.steps:
+                if 0 <= t - at < 0.2:
+                    s *= 1 + 0.05 * (1 - ease_out_cubic((t - at) / 0.2))
+            paste_center(im, scaled(card, s * (1 + 0.01 * beat_pulse(T))), CARD_C[0], CARD_C[1] + 30)
+            badge = r.badge_q
+            paste_center(im, scaled(badge, 1 + 0.08 * beat_pulse(T)), CARD_C[0] + CW / 2 - 40,
+                         CARD_C[1] + 30 - CH / 2 + 40)
+            if t < s2:
+                paste_center(im, scaled(self.c1, slam if slam_at == s0 else 1.0).rotate(-2, Image.BICUBIC, expand=True),
+                             W / 2, 300)
+                if t >= s1:
+                    paste_center(im, scaled(self.c2, slam if slam_at == s1 else 1.0).rotate(2, Image.BICUBIC,
+                                                                                         expand=True), W / 2, 445)
+                paste_center(im, scaled(self.o3, 1 + 0.04 * beat_pulse(T)), W / 2, 1720)
+            else:
+                paste_center(im, scaled(self.c3, slam if slam_at == s2 else 1.0).rotate(-2, Image.BICUBIC,
+                                                                                     expand=True), W / 2, 320)
+                paste_center(im, self.c4, W / 2, 450)
+                paste_center(im, scaled(self.o3, 1 + 0.04 * beat_pulse(T)), W / 2, 1720)
+            im = shake(im, 22 * (1 - ts / 0.25) if ts < 0.25 else 0, t)
+            for at in self.steps:
+                if 0 <= t - at < 0.12:
+                    im = rgb_split(im, 12 * (1 - (t - at) / 0.12))
+            if t >= s2 and cut_t < 0.1:
+                im = rgb_split(mm.zoom_blur(im, 0.5 * (1 - cut_t / 0.1)), 14 * (1 - cut_t / 0.1))
+                if cut_t < 0.05:
+                    im.alpha_composite(Image.new("RGBA", (W, H), (255, 255, 255, 110)))
             return im
-        gc = (540, 1270)                                     # title card, polaroids flying out of the globe
-        R = 470 * (1 + 0.05 * beat_pulse(T)) * (1.25 - 0.25 * ease_out_cubic(clamp(ts / 0.3)))
+        tc = t - s3                                          # the challenge over the globe, polaroids bursting out
+        gc = (540, 1300)
+        R = 460 * (1 + 0.05 * beat_pulse(T)) * (1.25 - 0.25 * ease_out_cubic(clamp(tc / 0.3)))
         c = G.unit(10 + 50 * t, 25)
         im = self.ui["globe"].render(c, R, gc)
         self.ui["cmap"].draw(im, c, R, gc, None, 0.75 + 0.2 * beat_pulse(T))
         im.alpha_composite(Image.new("RGBA", (W, H), (10, 0, 30, 40)))
-        for j, mini in enumerate(self.minis):
-            ang = j * (2 * math.pi / len(self.minis)) + 0.4
-            rr = 150 + 820 * ease_out_cubic(clamp(ts / 0.7))
-            paste_center(im, mini, gc[0] + rr * math.cos(ang), gc[1] - 120 + rr * math.sin(ang) * 0.9)
-        for j, (img, y, rot) in enumerate([(self.l1, 330, -3), (self.l2, 490, 2), (self.l3, 660, -2)]):
-            sc = (slam if j == 2 else 1 + 0.12 * (1 - ease_out_cubic(clamp(ts / 0.18)))) * (1 + 0.03 * beat_pulse(T))
-            paste_center(im, scaled(img, sc).rotate(rot, Image.BICUBIC, expand=True), W / 2, y)
-        im = shake(im, 22 * (1 - ts / 0.3) if ts < 0.3 else 0, t)
-        if ts < 0.08:
-            im.alpha_composite(Image.new("RGBA", (W, H), (255, 255, 255, int(170 * (1 - ts / 0.08)))))
+        spots = [(150, 960), (930, 960), (110, 1300), (970, 1300), (170, 1650), (910, 1650), (400, 1820),
+                 (680, 1820)]
+        for j, (mini, (x, y)) in enumerate(zip(self.minis, spots)):   # polaroids fan out below the titles
+            kf = ease_out_back(clamp((tc - 0.03 * j) / 0.4), 1.4)
+            paste_center(im, scaled(mini, max(0.01, 0.4 + 0.6 * min(1.0, kf))), gc[0] + (x - gc[0]) * kf,
+                         gc[1] + (y - gc[1]) * kf)
+        k = 1 + 0.12 * (1 - ease_out_cubic(clamp(tc / 0.18)))
+        paste_center(im, scaled(self.l1, k).rotate(-3, Image.BICUBIC, expand=True), W / 2, 300)
+        paste_center(im, scaled(self.l2, k).rotate(2, Image.BICUBIC, expand=True), W / 2, 450)
+        paste_center(im, scaled(self.l3, slam * (1 + 0.04 * beat_pulse(T))).rotate(-3, Image.BICUBIC, expand=True),
+                     W / 2, 650)
+        im = shake(im, 22 * (1 - tc / 0.3) if tc < 0.3 else 0, t)
+        if tc < 0.08:
+            im.alpha_composite(Image.new("RGBA", (W, H), (255, 255, 255, int(170 * (1 - tc / 0.08)))))
         whip = ease_in_cubic((t - (self.dur - 0.2)) / 0.2)
         if whip > 0:
             im = rgb_split(mm.zoom_blur(im, whip), 24 * whip)
