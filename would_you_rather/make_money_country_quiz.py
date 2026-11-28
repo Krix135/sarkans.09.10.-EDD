@@ -651,7 +651,7 @@ class Intro(mv.Scene):
                 self.voices.append((at, c))
         s0, s1, s2, s3 = self.slams
         self.cut = (s3 - s2) / len(self.MONTAGE)
-        self.c1 = fit(rtext("GUESS THE COUNTRY", 112, stroke=11), 900)
+        self.c1 = fit(rtext("GUESS THE COUNTRY", 136, stroke=13), 990)
         self.c2 = fit(join(rtext("FROM ITS MONEY", 104, fill=(90, 230, 140), stroke=10), emoji("💸", 92), gap=12), 900)
         self.c3 = fit(join(rtext("ONLY 1% GET 10/10", 112, fill=PINK, stroke=11), emoji("💀", 104), gap=12), 900)
         self.c4 = fit(rtext("10 COUNTRIES · 10 BANKNOTES", 60, fill=(255, 255, 255), stroke=7), 900)
@@ -662,8 +662,13 @@ class Intro(mv.Scene):
         self.minis = [scaled(r.front, 0.34).rotate(random.Random(i).uniform(-14, 14), Image.BICUBIC, expand=True)
                       for i, r in enumerate(rounds[:8])]
         hk = rounds[self.HOOK]
-        self.stamp_t, self.hint_t = s1, s1 + max(hb, (s2 - s1) / 2)
+        self.stamp_t, self.hint_t = hb, s1 + max(hb, (s2 - s1) / 2)   # the stamp lands inside the first second
+        self.rays = mq.sunburst(1300, GOLD)
+        rr = random.Random(77)
+        self.burst = [(rr.uniform(0, 2 * math.pi), rr.uniform(700, 1700), rr.choice(ui["cash"]), rr.uniform(-600, 600),
+                       rr.uniform(0.9, 1.6)) for _ in range(34)]
         self.sounds += [(0.0, mq.sfx_boom(), 1.0), (0.0, sfx_flip(), 0.8), (0.05, wm.sfx_coins(), 0.6),
+                        (0.0, mv.sfx_whoosh(0.3), 0.9), (0.03, sfx_cash(), 0.8),
                         (0.02, sfx_heartbeat(), 0.8), (self.stamp_t, sfx_stamp(), 1.0), (self.hint_t, mv.sfx_pop(), 0.8),
                         (s2, mq.sfx_boom(), 0.9), (s2, mq.sfx_glitch(), 0.5),
                         (s3 - 0.9, mv.sfx_riser(0.9), 0.6), (s3, mq.sfx_boom(), 1.0), (s3, sfx_cash(), 0.9),
@@ -678,8 +683,11 @@ class Intro(mv.Scene):
         s0, s1, s2, s3 = self.slams
         slam_at = max(at for at in self.slams if at <= t + 1e-9)
         ts = t - slam_at
-        slam = 1 + (0.12 if slam_at == 0 else 0.3) * (1 - ease_out_cubic(clamp(ts / 0.18)))
+        slam = 1 + (0.15 if slam_at == 0 else 0.3) * (1 - ease_out_cubic(clamp(ts / 0.22)))
         im = self.ui["bg"].render(T * 1.6, strobe=0.35 * beat_pulse(T))
+        if t < s2:                                           # spinning gold rays behind the hook note
+            paste_center(im, self.rays.rotate(t * 40, Image.BICUBIC), NOTE_C[0], NOTE_C[1],
+                         0.85 * clamp(t / 0.1))
         if t < s3:
             if t < s2:                                       # the hook: one note, clues unlocking
                 r = self.hook
@@ -699,11 +707,22 @@ class Intro(mv.Scene):
                 ky = 0.0
             note = flip_view(f, r.back, ang) if ang > 0.01 else f
             s = 1.0 + 0.012 * beat_pulse(T)
+            rot = 3 * math.sin(T * 1.3)
+            if t < s2:                                       # frame one: the note slams in from huge
+                kin = ease_out_cubic(clamp(t / 0.3))
+                s *= 1 + 1.4 * (1 - kin) + 0.03 * t
+                rot += -16 * (1 - kin)
+                for ang_, sp_, spr, spin, sz in self.burst:  # cash and coins explode out from behind it
+                    kb = clamp(t / 1.4)
+                    if kb < 1:
+                        x = NOTE_C[0] + math.cos(ang_) * sp_ * ease_out_cubic(kb)
+                        y = NOTE_C[1] + math.sin(ang_) * sp_ * 0.9 * ease_out_cubic(kb) + 500 * kb * kb
+                        paste_center(im, scaled(spr, sz).rotate(spin * kb, Image.BICUBIC, expand=True), x, y,
+                                     1 - kb * kb)
             if t >= self.stamp_t and t < s2 and t - self.stamp_t < 0.2:
-                s *= 1 + 0.05 * (1 - ease_out_cubic((t - self.stamp_t) / 0.2))
+                s *= 1 + 0.07 * (1 - ease_out_cubic((t - self.stamp_t) / 0.2))
             paste_center(im, scaled(r.shadow, s * note.width / NW), NOTE_C[0] + 16, NOTE_C[1] + 30)
-            paste_center(im, scaled(note, s).rotate(3 * math.sin(T * 1.3), Image.BICUBIC, expand=True), NOTE_C[0],
-                         NOTE_C[1] + ky)
+            paste_center(im, scaled(note, s).rotate(rot, Image.BICUBIC, expand=True), NOTE_C[0], NOTE_C[1] + ky)
             paste_center(im, scaled(r.badge_q, 1 + 0.08 * beat_pulse(T)), NOTE_C[0] + NW / 2 - 30, NOTE_C[1] - NH / 2 - 10)
             if t < s2:
                 paste_center(im, scaled(self.c1, slam if slam_at == s0 else 1.0).rotate(-2, Image.BICUBIC, expand=True),
@@ -719,9 +738,15 @@ class Intro(mv.Scene):
                                                                                      expand=True), W / 2, 330)
                 paste_center(im, self.c4, W / 2, 465)
             paste_center(im, scaled(self.o3, 1 + 0.04 * beat_pulse(T)), W / 2, 1720)
-            im = shake(im, 22 * (1 - ts / 0.25) if ts < 0.25 else 0, t)
+            im = shake(im, (34 if slam_at == 0 else 22) * (1 - ts / 0.25) if ts < 0.25 else 0, t)
             if 0 <= t - self.stamp_t < 0.12 and t < s2:
-                im = rgb_split(im, 12 * (1 - (t - self.stamp_t) / 0.12))
+                im = rgb_split(im, 14 * (1 - (t - self.stamp_t) / 0.12))
+                im = shake(im, 20 * (1 - (t - self.stamp_t) / 0.12), t + 1)
+            if t < 0.22:                                     # impact flash and colour split on the slam
+                im = rgb_split(im, 12 * (1 - t / 0.22))
+                fl = math.sin(math.pi * clamp(t / 0.14))
+                if fl > 0.01:
+                    im.alpha_composite(Image.new("RGBA", (W, H), (255, 240, 190, int(110 * fl))))
             if t >= s2:
                 ct = (t - s2) % self.cut
                 if ct < 0.1:
