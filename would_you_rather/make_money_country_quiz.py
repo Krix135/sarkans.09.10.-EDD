@@ -183,6 +183,41 @@ def note_front(r, seed):
     return base
 
 
+def note_plain_back(r):
+    """A plain back for the spins during the question: the note's colour and pattern with a big currency symbol
+    and the denomination, and no flag or country name (so nothing gives the answer away)."""
+    code, fcode, cname, sym, cur, denom, col = r[:7]
+    a = np.zeros((NH, NW, 4), np.uint8)
+    yy, xx = np.mgrid[0:NH, 0:NW]
+    k = (1 - xx / NW) * 0.6 + yy / NH * 0.4
+    c0, c1 = np.array(lighten(col, 0.3)), np.array(darken(col, 0.3))
+    a[..., :3] = (c0[None, None, :] * (1 - k[..., None]) + c1[None, None, :] * k[..., None]).astype(np.uint8)
+    a[..., 3] = 255
+    base = Image.fromarray(a, "RGBA")
+    d = ImageDraw.Draw(base, "RGBA")
+    for j in range(46):
+        y0 = 20 + j * 10
+        pts = [(x, y0 + 6 * math.sin(x / 19 + j * 0.9) + 4 * math.sin(x / 11 + j)) for x in range(0, NW + 8, 8)]
+        d.line(pts, fill=lighten(col, 0.6) + (70,), width=1)
+    cx, cy, R0 = NW / 2, NH / 2, 190
+    for j in range(22):
+        pts = []
+        for i in range(181):
+            th = i / 180 * 2 * math.pi
+            rad = R0 * (0.6 + 0.4 * math.cos(9 * th + j * 0.3)) * (1 - j * 0.01)
+            pts.append((cx + rad * math.cos(th + j * 0.15), cy + rad * math.sin(th + j * 0.15)))
+        d.line(pts, fill=lighten(col, 0.7) + (80,), width=2)
+    d.rounded_rectangle((16, 16, NW - 17, NH - 17), 40, outline=lighten(col, 0.75) + (255,), width=6)
+    d.rounded_rectangle((30, 30, NW - 31, NH - 31), 32, outline=darken(col, 0.35) + (200,), width=2)
+    sy = stext(sym, 230 if len(sym) == 1 else 170, fill=(255, 255, 255), stroke=9, stroke_fill=darken(col, 0.5))
+    paste_center(base, sy, cx, cy)
+    for x, y in ((90, 70), (NW - 90, NH - 70)):
+        dn = stext(denom, 46, fill=lighten(col, 0.85), stroke=4, stroke_fill=darken(col, 0.5))
+        paste_center(base, dn, x + (dn.width / 2 - 40) * (1 if x < cx else -1), y)
+    base.putalpha(Image.fromarray(np.minimum(np.asarray(base.getchannel("A")), np.asarray(note_mask()))))
+    return base
+
+
 def note_back(r):
     """The back: the country's flag with its name."""
     code, fcode, cname = r[:3]
@@ -301,7 +336,8 @@ class Round(mv.Scene):
         self.hint_at = self.count_beats[1] * B
         self.glitch_at = self.count_beats[2] * B
         self.front = note_front(r, idx * 11)
-        self.back = note_back(r)
+        self.back = note_back(r)                             # flag and country: only shown on the reveal flip
+        self.plain_back = note_plain_back(r)                 # shown while the note spins in during the question
         self.stamp = name_stamp(cur)
         self.col = col
         self.cname = cname
@@ -437,7 +473,7 @@ class Round(mv.Scene):
         if rv <= 0:
             k = clamp(t / 0.45)
             ang = (1 - ease_out_cubic(k)) * 4 * math.pi       # spins in, two full flips
-            return flip_view(self.front_at(t, T), self.back, ang) if k < 1 else self.front_at(t, T)
+            return flip_view(self.front_at(t, T), self.plain_back, ang) if k < 1 else self.front_at(t, T)
         k = ease_in_out(clamp(rv / 0.35))
         if k < 1:
             return flip_view(self.front_at(t, T), self.back, math.pi * k)
@@ -705,7 +741,7 @@ class Intro(mv.Scene):
                 ct = t - s2 - j * self.cut
                 ang = (1 - ease_out_cubic(clamp(ct / 0.18))) * 2 * math.pi
                 ky = 0.0
-            note = flip_view(f, r.back, ang) if ang > 0.01 else f
+            note = flip_view(f, r.plain_back, ang) if ang > 0.01 else f
             s = 1.0 + 0.012 * beat_pulse(T)
             rot = 3 * math.sin(T * 1.3)
             if t < s2:                                       # frame one: the note slams in from huge
